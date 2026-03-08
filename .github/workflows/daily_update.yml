@@ -1,0 +1,41 @@
+name: Pattern Index Daily Update
+
+on:
+  schedule:
+    # 3:35 PM IST = 10:05 UTC
+    - cron: '5 10 * * 1-5'   # Mon–Fri only
+
+  # Also allow running manually from GitHub Actions tab
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to commit data/history.json back
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests numpy
+
+      - name: Run updater
+        env:
+          TELEGRAM_TOKEN:   ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python updater.py
+
+      - name: Commit updated history
+        run: |
+          git config user.name  "pattern-index-bot"
+          git config user.email "bot@pattern-index"
+          git add data/history.json
+          git diff --cached --quiet || git commit -m "data: update $(date -u +'%Y-%m-%d')"
+          git push
