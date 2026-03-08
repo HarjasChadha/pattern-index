@@ -1,0 +1,10 @@
+{
+  "index_label": "SMALLCAP 250",
+  "nse_slug": "NIFTY%20SMALLCAP%20250",
+  "pe_lookback": 252,
+  "pe_floor": 0.05,
+  "pe_ceiling": 0.85,
+  "dd_threshold": 0.07,
+  "ma_lookback": 20,
+  "initial_capital": 100000.0
+}
