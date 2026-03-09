@@ -227,7 +227,7 @@ async function fetchAndRender() {
   try {
     const res = await fetch(API);
     const json = await res.json();
-    const raw = json.history || {};
+    const raw = Array.isArray(json.history) ? json.history : (json.history.live_rows || []);
     // New format: history has live_rows + lookback_data
     // Old flat format: history is a plain array (legacy fallback)
     allData = Array.isArray(raw) ? raw : (raw.live_rows || []);
