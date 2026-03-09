@@ -8,11 +8,11 @@
 | # | Problem | Where to fix |
 |---|---------|-------------|
 | 1 | Dashboard shows "SMALLCAP 250" instead of "MIDCAP 150" | `params.json` on GitHub |
-| 2 | Portfolio starts from 2020 — should start from TODAY | Cell 17 in Colab + `dashboard.html` |
-| 3 | T+2 settlement ignored — switches asset immediately | Cell 17 in Colab + `updater.py` |
-| 4 | Data only goes to Dec 31 2025 — need Jan 1 to Mar 8 2026 | New data files to download |
+| 2 | Portfolio starts from 2020 - should start from TODAY | Cell 17 in Colab + `dashboard.html` |
+| 3 | T+2 settlement ignored - switches asset immediately | Cell 17 in Colab + `updater.py` |
+| 4 | Data only goes to Dec 31 2025 - need Jan 1 to Mar 8 2026 | New data files to download |
 | 5 | Colab has no instructions for >2 NAV files or >6 PE files | Cell 4 already handles this — NO change needed |
-| 6 | Gold MA uses 20-day — math doc says 50-day | Cell 17 in Colab + `updater.py` |
+| 6 | Gold MA uses 20-day - math doc says 50-day | Cell 17 in Colab + `updater.py` |
 
 ---
 
