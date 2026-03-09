@@ -168,12 +168,11 @@ p_ma   = sma(prices_arr, i, MA_LB)
 g_ma   = sma(nav_arr, i, GOLD_MA_LB)
 dd     = roll_dd(prices_arr, i, 252)
 
-tc = 0
-if pe_pct is not None:
-    if pe_pct < PE_FL: tc += 1
-    if pe_pct > PE_CE: tc += 1
-if dd < -abs(DD_TH): tc += 1
-if p_ma is not None and price_today < p_ma: tc += 1
+t_pe_floor   = (pe_pct is not None) and (pe_pct < PE_FL)
+t_pe_ceiling = (pe_pct is not None) and (pe_pct > PE_CE)
+t_dd         = dd < -abs(DD_TH)
+t_ma         = (p_ma is not None) and (price_today < p_ma)
+tc           = sum([t_pe_floor, t_pe_ceiling, t_dd, t_ma])
 
 print(f"\n  Indicators:")
 print(f"    PE={pe_today}, PE%ile={round(pe_pct*100,1) if pe_pct else 'N/A'}%")
@@ -288,6 +287,10 @@ new_row = {
     "gold_ma"          : round(g_ma, 4) if g_ma is not None else None,
     "asset"            : new_asset,
     "triggers"         : tc,
+    "t_pe_floor"       : t_pe_floor,
+    "t_pe_ceiling"     : t_pe_ceiling,
+    "t_dd"             : t_dd,
+    "t_ma"             : t_ma,
     "signal"           : signal,
     "settlement_state" : new_settlement,
     "pending_target"   : new_target,
