@@ -38,7 +38,10 @@ def index():
 def api_data():
     history = load_data()
     params  = load_params()
-    return jsonify({"history": history, "params": params})
+    # Always return live_rows as the history array
+    # This works with both old and new dashboard.html versions
+    live_rows = history.get("live_rows", [])
+    return jsonify({"history": live_rows, "params": params})
 
 @app.route("/api/latest")
 def api_latest():
