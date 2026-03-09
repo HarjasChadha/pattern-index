@@ -22862,5 +22862,21 @@
     "portfolio_value": 573704.4,
     "benchmark_value": 341013.14,
     "signal": "STAY EQUITY"
+  },
+  {
+    "date": "2026-03-09",
+    "pe": 25.37,
+    "pe_pct": 0.0,
+    "price": 15010.65,
+    "price_ma": 16353.715,
+    "gold_nav": 102.1107,
+    "gold_ma": 43.5916,
+    "asset": "GOLD",
+    "triggers": 3,
+    "benchmark_dd": -19.3979,
+    "portfolio_dd": -11.9676,
+    "portfolio_value": 515624.4,
+    "benchmark_value": 306796.86,
+    "signal": "EXIT EQUITY \u2192 GOLD"
   }
 ]
