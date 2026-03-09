@@ -1,38 +1,35 @@
 name: Pattern Index Daily Update
-
 on:
   schedule:
     - cron: '5 10 * * 1-5'
   workflow_dispatch:
-
 jobs:
   update:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install dependencies
         run: pip install requests numpy
-
       - name: Run updater
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python updater.py
-
       - name: Commit updated history
         run: |
           git config user.name "pattern-index-bot"
           git config user.email "bot@pattern-index"
-          git add -f data/history.json
-          git diff --cached --quiet || git commit -m "data: update $(date -u +'%Y-%m-%d')"
-          git push
+          if [ -f data/history.json ]; then
+            git add -f data/history.json
+            git diff --cached --quiet || git commit -m "data: update $(date -u +'%Y-%m-%d')"
+            git push
+          else
+            echo "No history.json written — skipping commit (weekend or scrape failed)."
+          fi
