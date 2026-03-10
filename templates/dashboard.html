@@ -28,7 +28,6 @@
     min-height: 100vh;
   }
 
-  /* ── Top bar ── */
   .topbar {
     background: var(--card);
     border-bottom: 1px solid var(--border);
@@ -51,7 +50,6 @@
   }
   .last-updated { font-size: 11px; color: var(--sub); }
 
-  /* ── Signal banner ── */
   .signal-banner {
     margin: 14px 14px 0;
     padding: 14px 16px;
@@ -69,7 +67,6 @@
   .signal-banner .icon { font-size: 22px; }
   .signal-banner .sub { font-size: 11px; font-weight: 400; color: var(--sub); margin-top: 2px; }
 
-  /* ── Stat cards ── */
   .cards {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -92,7 +89,6 @@
   .card .value.pos    { color: var(--success); }
   .card .value.neg    { color: var(--danger); }
 
-  /* ── Triggers bar ── */
   .triggers-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
   .trigger-chip {
     font-size: 11px; padding: 3px 9px; border-radius: 20px; font-weight: 600;
@@ -101,10 +97,7 @@
   .trigger-chip.active   { background: rgba(239,68,68,0.15); color: var(--danger);  border-color: rgba(239,68,68,0.3); }
   .trigger-chip.inactive { background: rgba(139,143,168,0.1); color: var(--sub);    border-color: var(--border); }
 
-  /* ── Performance chart (sparkline) ── */
-  .chart-wrap {
-    padding: 0 14px 14px;
-  }
+  .chart-wrap { padding: 0 14px 14px; }
   .chart-card {
     background: var(--card);
     border: 1px solid var(--border);
@@ -121,10 +114,7 @@
   }
   svg.sparkline { width: 100%; height: 80px; overflow: visible; }
 
-  /* ── History table ── */
-  .table-wrap {
-    padding: 0 14px 80px;
-  }
+  .table-wrap { padding: 0 14px 80px; }
   .table-title {
     font-size: 12px; color: var(--sub);
     text-transform: uppercase; letter-spacing: 0.5px;
@@ -173,7 +163,6 @@
   .pos { color: var(--success); }
   .neg { color: var(--danger); }
 
-  /* ── Loading / error ── */
   .loading {
     display: flex;
     align-items: center;
@@ -192,7 +181,6 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* ── Params footer ── */
   .params-bar {
     position: fixed;
     bottom: 0; left: 0; right: 0;
@@ -220,39 +208,49 @@
 
 <script>
 const API = '/api/data';
-let allData = [], params = {};
+let liveRows = [], lookbackData = [], params = {};
 
-// ── Fetch & render ──────────────────────────────────────────────
 async function fetchAndRender() {
   try {
     const res = await fetch(API);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
-    const raw = Array.isArray(json.history) ? json.history : (json.history.live_rows || []);
-    // New format: history has live_rows + lookback_data
-    // Old flat format: history is a plain array (legacy fallback)
-    allData = Array.isArray(raw) ? raw : (raw.live_rows || []);
-    params  = json.params  || {};
+
+    // ── Parse history — handle both flat array and {live_rows, lookback_data} dict ──
+    const hist = json.history;
+    if (Array.isArray(hist)) {
+      // Legacy flat format
+      liveRows = hist;
+      lookbackData = [];
+    } else if (hist && typeof hist === 'object') {
+      liveRows     = Array.isArray(hist.live_rows)     ? hist.live_rows     : [];
+      lookbackData = Array.isArray(hist.lookback_data) ? hist.lookback_data : [];
+    } else {
+      liveRows = [];
+      lookbackData = [];
+    }
+
+    params = json.params || {};
     render();
   } catch(e) {
     document.getElementById('root').innerHTML =
-      `<div class="loading"><div>⚠️ Could not load data</div></div>`;
+      `<div class="loading"><div>⚠️ Could not load data<br><span style="font-size:11px;margin-top:6px;display:block;color:var(--sub)">${e.message}</span></div></div>`;
   }
 }
 
-// ── Main render ─────────────────────────────────────────────────
 function render() {
-  if (!allData.length) {
+  if (!liveRows.length) {
     document.getElementById('root').innerHTML =
-      `<div class="loading"><div>No data yet — runs today at 3:35 PM IST</div></div>`;
+      `<div class="loading"><div>No data yet — runs today at 11:30 PM IST</div></div>`;
     return;
   }
 
-  const latest = allData[allData.length - 1];
-  const prev   = allData.length > 1 ? allData[allData.length - 2] : null;
-  const ma_lb  = params.ma_lookback || '–';
-  const idx    = params.index_label || 'INDEX';
+  const latest    = liveRows[liveRows.length - 1];
+  const ma_lb     = params.ma_lookback || '–';
+  const idx       = params.index_label || 'INDEX';
+  const startCap  = params.initial_capital || 100000;
 
-  // Signal class
+  // ── Signal banner class ──
   const sig = latest.signal || '';
   let bannerClass = 'stay', bannerIcon = '✅';
   if (sig.includes('EXIT') || sig.includes('→')) { bannerClass = 'exit'; bannerIcon = '🚨'; }
@@ -260,17 +258,25 @@ function render() {
   if (sig.includes('BOUGHT'))                    { bannerClass = 'move'; bannerIcon = '✅'; }
   if (sig.includes('SELLING'))                   { bannerClass = 'exit'; bannerIcon = '⏳'; }
 
-  // Asset class
   const assetClass = (latest.asset || '').toLowerCase();
 
-  // P&L
-  const startCapital = params.initial_capital || 100000;
-  const pnl     = latest.portfolio_value - latest.benchmark_value;
-  const pnlPct  = ((latest.portfolio_value - startCapital) / startCapital * 100).toFixed(2);
-  const bmPct   = ((latest.benchmark_value - startCapital) / startCapital * 100).toFixed(2);
+  // ── P&L ──
+  const pv      = latest.portfolio_value  ?? startCap;
+  const bv      = latest.benchmark_value  ?? startCap;
+  const pnl     = pv - bv;
+  const pnlPct  = ((pv - startCap) / startCap * 100).toFixed(2);
+  const bmPct   = ((bv - startCap) / startCap * 100).toFixed(2);
 
-  // Trigger chips
-  const triggerFlags = [
+  // ── Trigger count (FIX: was undefined variable `tc`) ──
+  const tc = latest.triggers ?? (
+    (latest.t_pe_floor   ? 1 : 0) +
+    (latest.t_pe_ceiling ? 1 : 0) +
+    (latest.t_dd         ? 1 : 0) +
+    (latest.t_ma         ? 1 : 0)
+  );
+
+  // ── Trigger chips ──
+  const triggerFlags  = [
     latest.t_pe_floor   === true,
     latest.t_pe_ceiling === true,
     latest.t_dd         === true,
@@ -281,27 +287,26 @@ function render() {
     `<span class="trigger-chip ${triggerFlags[i] ? 'active' : 'inactive'}">${lbl}</span>`
   ).join('');
 
-  // Settlement state badge
+  // ── Settlement badge ──
   const settlementState = latest.settlement_state || 'NORMAL';
   const settlementBadge = settlementState !== 'NORMAL'
-    ? ` · ⏳ ${settlementState.replace(/_/g, ' ')}`
-    : '';
+    ? ` · ⏳ ${settlementState.replace(/_/g, ' ')}` : '';
 
-  // Pending target info
   const pendingInfo = latest.pending_target
     ? `<div class="sub" style="margin-top:4px;color:var(--warning)">Pending: buying ${latest.pending_target} on T+2</div>`
     : '';
 
-  // Sparkline
-  const sparkHTML = buildSparkline(allData);
+  // ── Sparkline: use lookbackData for the price/PE history chart ──
+  const sparkHTML = buildPortfolioSparkline(liveRows);
+  const priceSparkHTML = buildPriceSparkline(lookbackData);
 
-  // Table rows (newest first)
-  const rows = [...allData].reverse().map((r) => {
+  // ── Table rows (live_rows, newest first) ──
+  const rows = [...liveRows].reverse().map((r) => {
     const ac  = (r.asset||'').toLowerCase();
     const pdd = r.portfolio_dd ?? 0;
     const bdd = r.benchmark_dd ?? 0;
-    const pv  = r.portfolio_value ?? 0;
-    const bv  = r.benchmark_value ?? 0;
+    const rpv = r.portfolio_value ?? 0;
+    const rbv = r.benchmark_value ?? 0;
     const ss  = r.settlement_state && r.settlement_state !== 'NORMAL'
       ? ` <span style="font-size:9px;color:var(--warning)">⏳</span>` : '';
     return `
@@ -316,13 +321,12 @@ function render() {
       <td><span class="asset-tag ${ac}">${r.asset||'–'}</span></td>
       <td class="${bdd<0?'neg':'pos'}">${bdd>=0?'+':''}${bdd}%</td>
       <td class="${pdd<0?'neg':'pos'}">${pdd>=0?'+':''}${pdd}%</td>
-      <td>₹${pv.toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:0})}</td>
-      <td>₹${bv.toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:0})}</td>
+      <td>₹${rpv.toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:0})}</td>
+      <td>₹${rbv.toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:0})}</td>
     </tr>`;
   }).join('');
 
   document.getElementById('root').innerHTML = `
-  <!-- topbar -->
   <div class="topbar">
     <div>
       <h1>Pattern Index</h1>
@@ -331,7 +335,6 @@ function render() {
     <span class="index-label">${idx}</span>
   </div>
 
-  <!-- signal banner -->
   <div class="signal-banner ${bannerClass}">
     <span class="icon">${bannerIcon}</span>
     <div>
@@ -341,7 +344,6 @@ function render() {
     </div>
   </div>
 
-  <!-- stat cards -->
   <div class="cards">
     <div class="card">
       <div class="label">Holding</div>
@@ -355,7 +357,7 @@ function render() {
     </div>
     <div class="card">
       <div class="label">Portfolio Value</div>
-      <div class="value ${pnlPct>=0?'pos':'neg'}">₹${(latest.portfolio_value||0).toLocaleString('en-IN',{maximumFractionDigits:0})}</div>
+      <div class="value ${pnlPct>=0?'pos':'neg'}">₹${pv.toLocaleString('en-IN',{maximumFractionDigits:0})}</div>
       <div class="sub ${pnlPct>=0?'pos':'neg'}">${pnlPct>=0?'+':''}${pnlPct}% since start</div>
     </div>
     <div class="card">
@@ -379,22 +381,34 @@ function render() {
     </div>
   </div>
 
-  <!-- sparkline -->
+  <!-- Portfolio P&L chart (live_rows) -->
   <div class="chart-wrap">
     <div class="chart-card">
       <div class="chart-title">
         <span>Portfolio vs Benchmark</span>
-        <span>${allData.length} days tracked</span>
+        <span>${liveRows.length} day${liveRows.length===1?'':'s'} tracked</span>
       </div>
       ${sparkHTML}
     </div>
   </div>
 
-  <!-- table -->
+  <!-- Index price history chart (lookback_data) -->
+  ${lookbackData.length > 1 ? `
+  <div class="chart-wrap">
+    <div class="chart-card">
+      <div class="chart-title">
+        <span>${idx} Price History</span>
+        <span>${lookbackData.length} days of data</span>
+      </div>
+      ${priceSparkHTML}
+    </div>
+  </div>` : ''}
+
+  <!-- Live history table -->
   <div class="table-wrap">
     <div class="table-title">
       <span>Live History</span>
-      <span>${allData.length} rows</span>
+      <span>${liveRows.length} row${liveRows.length===1?'':'s'}</span>
     </div>
     <div class="table-outer">
       <div class="table-scroll">
@@ -415,7 +429,6 @@ function render() {
     </div>
   </div>
 
-  <!-- params footer -->
   <div class="params-bar">
     <span>PE LB: <b>${params.pe_lookback||'–'}d</b></span>
     <span>Floor: <b>${params.pe_floor != null ? (params.pe_floor*100).toFixed(0)+'%' : '–'}</b></span>
@@ -427,12 +440,12 @@ function render() {
   `;
 }
 
-// ── Sparkline builder ───────────────────────────────────────────
-function buildSparkline(data) {
-  if (data.length < 2) return '<p style="color:var(--sub);font-size:12px;padding:8px 0">Tracking starts today — chart will build over time</p>';
+// ── Portfolio sparkline (live_rows) ─────────────────────────────
+function buildPortfolioSparkline(data) {
+  if (data.length < 2) return '<p style="color:var(--sub);font-size:12px;padding:8px 0">Tracking starts today — chart will build over time ✅</p>';
 
-  const pvs = data.map(r => r.portfolio_value);
-  const bvs = data.map(r => r.benchmark_value);
+  const pvs = data.map(r => r.portfolio_value ?? 0);
+  const bvs = data.map(r => r.benchmark_value ?? 0);
   const all = [...pvs, ...bvs];
   const minV = Math.min(...all), maxV = Math.max(...all);
   const range = maxV - minV || 1;
@@ -444,7 +457,6 @@ function buildSparkline(data) {
   const pathPV = pvs.map((v,i) => `${i===0?'M':'L'}${toX(i)},${toY(v)}`).join(' ');
   const pathBV = bvs.map((v,i) => `${i===0?'M':'L'}${toX(i)},${toY(v)}`).join(' ');
 
-  // Asset background bands
   const bands = data.map((r,i) => {
     if (i === data.length - 1) return '';
     const x1 = toX(i), x2 = toX(i+1);
@@ -471,7 +483,41 @@ function buildSparkline(data) {
   </div>`;
 }
 
-// ── Auto refresh every 5 minutes ────────────────────────────────
+// ── Index price sparkline (lookback_data) ────────────────────────
+function buildPriceSparkline(data) {
+  if (data.length < 2) return '';
+  const prices = data.map(r => r.price ?? 0);
+  const mas    = data.map(r => r.price_ma);
+  const minV = Math.min(...prices), maxV = Math.max(...prices);
+  const range = maxV - minV || 1;
+  const W = 1000, H = 80, pad = 4;
+
+  const toX = i => pad + (i / (data.length - 1)) * (W - pad*2);
+  const toY = v => H - pad - ((v - minV) / range) * (H - pad*2);
+
+  const pathPrice = prices.map((v,i) => `${i===0?'M':'L'}${toX(i)},${toY(v)}`).join(' ');
+
+  // MA line — only where available
+  let pathMA = '';
+  let maStarted = false;
+  for (let i = 0; i < mas.length; i++) {
+    if (mas[i] == null) continue;
+    pathMA += `${!maStarted ? 'M' : 'L'}${toX(i)},${toY(mas[i])} `;
+    maStarted = true;
+  }
+
+  return `
+  <svg class="sparkline" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    <path d="${pathPrice}" fill="none" stroke="rgba(99,102,241,0.7)" stroke-width="1.5"/>
+    ${pathMA ? `<path d="${pathMA}" fill="none" stroke="rgba(245,158,11,0.6)" stroke-width="1.5" stroke-dasharray="4,3"/>` : ''}
+    <circle cx="${toX(data.length-1)}" cy="${toY(prices[prices.length-1])}" r="4" fill="#6366f1"/>
+  </svg>
+  <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--sub)">
+    <span><svg width="12" height="2" viewBox="0 0 12 2" style="vertical-align:middle"><line x1="0" y1="1" x2="12" y2="1" stroke="rgba(99,102,241,0.7)" stroke-width="1.5"/></svg> Index Price</span>
+    ${pathMA ? `<span><svg width="12" height="2" viewBox="0 0 12 2" style="vertical-align:middle"><line x1="0" y1="1" x2="12" y2="1" stroke="rgba(245,158,11,0.6)" stroke-width="1.5" stroke-dasharray="4,3"/></svg> MA${params.ma_lookback||'–'}</span>` : ''}
+  </div>`;
+}
+
 fetchAndRender();
 setInterval(fetchAndRender, 5 * 60 * 1000);
 </script>
