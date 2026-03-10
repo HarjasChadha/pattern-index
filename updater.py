@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 """
-Pattern Index - Daily Updater (FIXED VERSION)
-Fixes:
-  - T+2 settlement properly modelled
-  - Gold MA uses 50-day (not 20)
-  - history.json new format: {lookback_data: [...], live_rows: [...]}
-  - Portfolio starts from seeded day, not 2020
+Pattern Index - Daily Updater
+Runs via GitHub Actions after market close (weekdays ~4 PM IST = 10:30 UTC).
+Fetches NSE price/PE + Gold NAV, updates history.json, commits back.
 """
 
 import json, os, time, datetime, requests
@@ -58,10 +55,11 @@ else:
     live_rows = raw.get('live_rows', [])
     legacy_mode = False
 
-# Check if today already exists
-all_dates = [r['date'] for r in lookback_data] + [r['date'] for r in live_rows]
-if TODAY_STR in all_dates:
-    print(f"Today ({TODAY_STR}) already in history - skipping.")
+# Check if today already exists in live_rows only
+# (lookback_data may already have today from a previous partial run)
+live_dates = [r['date'] for r in live_rows]
+if TODAY_STR in live_dates:
+    print(f"Today ({TODAY_STR}) already in live_rows - skipping.")
     exit(0)
 
 print(f"  Lookback rows : {len(lookback_data)}")
@@ -71,59 +69,101 @@ print(f"  Last live     : {live_rows[-1]['date'] if live_rows else 'none'}")
 
 
 def scrape_nse():
+    """
+    Fetch latest closing price and PE from Screener.in.
+    Screener always shows the last market close — perfect for our 11:30 PM run.
+    Returns (price, pe, date_str).
+    """
     try:
-        session = requests.Session()
-        session.headers.update({
+        from bs4 import BeautifulSoup
+        headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Referer': 'https://www.nseindia.com/',
-        })
-        session.get('https://www.nseindia.com', timeout=10)
-        time.sleep(2)
-        url = f'https://www.nseindia.com/api/equity-stockIndices?index={NSE_SLUG}'
-        r = session.get(url, timeout=15)
-        data = r.json()
-        row = data['data'][0]
-        price = float(row.get('lastPrice', row.get('last', 0)))
-        pe    = float(row.get('pe', row.get('PE', 0)))
-        print(f"  NSE ok: price={price}, pe={pe}")
-        return price, pe
+        }
+        r = requests.get(
+            'https://www.screener.in/company/NMIDCAP150/',
+            headers=headers, timeout=15
+        )
+        soup = BeautifulSoup(r.text, 'html.parser')
+
+        price, pe = None, None
+
+        # Screener renders ratios as <ul class="company-ratios"> <li> items
+        # Each <li> has a <span class="name"> label and a <span class="number"> value
+        for li in soup.select('ul.company-ratios li'):
+            name_tag = li.find('span', class_='name')
+            num_tag  = li.find('span', class_='number')
+            if not name_tag or not num_tag:
+                continue
+            label = name_tag.get_text(strip=True).lower()
+            val   = num_tag.get_text(strip=True).replace(',', '').replace('₹', '').replace('%', '').strip()
+            try:
+                if 'current price' in label and price is None:
+                    price = float(val)
+                if label in ('p/e', 'pe', 'stock p/e', 'price to earning') and pe is None:
+                    pe = float(val)
+            except ValueError:
+                pass
+
+        # Fallback: the big price shown at top of page (outside the ratios list)
+        if price is None:
+            for tag in soup.select('#top h2, .company-price, [class*="price"]'):
+                txt = tag.get_text(strip=True).replace(',', '').replace('₹', '')
+                try:
+                    candidate = float(txt)
+                    if 5000 < candidate < 100000:  # sanity range for MIDCAP 150 index
+                        price = candidate
+                        break
+                except ValueError:
+                    pass
+
+        # Fallback PE: look for any li containing 'p/e' text
+        if pe is None:
+            for li in soup.select('li'):
+                txt = li.get_text(separator=' ', strip=True).lower()
+                if 'p/e' in txt or 'price to earning' in txt:
+                    nums = []
+                    for t in li.find_all(['span', 'strong', 'b']):
+                        try:
+                            nums.append(float(t.get_text(strip=True).replace(',', '')))
+                        except ValueError:
+                            pass
+                    if nums:
+                        pe = nums[0]
+                        break
+
+        if price and pe:
+            print(f"  Screener ok: price={price}, pe={pe}")
+            return price, pe, TODAY_STR
+        else:
+            print(f"  Screener parse failed: price={price}, pe={pe}")
+            # Print a snippet of the page to help debug
+            print(f"  Page snippet: {r.text[2000:2500]}")
+            return None, None, None
+
     except Exception as e:
-        print(f"  NSE primary failed: {e}")
-        try:
-            session.get('https://www.nseindia.com', timeout=10)
-            time.sleep(2)
-            r = session.get('https://www.nseindia.com/api/allIndices', timeout=15)
-            data = r.json()
-            for item in data.get('data', []):
-                if INDEX_LABEL.replace(' ', '').upper() in item.get('indexSymbol', '').replace(' ', '').upper():
-                    price = float(item.get('last', item.get('lastPrice', 0)))
-                    pe    = float(item.get('pe', item.get('PE', 0)))
-                    print(f"  NSE fallback ok: price={price}, pe={pe}")
-                    return price, pe
-        except Exception as e2:
-            print(f"  NSE fallback failed: {e2}")
-        return None, None
+        print(f"  Screener failed: {e}")
+        return None, None, None
 
 
 def scrape_gold_nav():
+    """Fetch latest Gold ETF NAV. Returns (nav, nav_date_str)."""
     try:
         r = requests.get('https://api.mfapi.in/mf/119598', timeout=10)
         data = r.json()
         nav_data = data['data']
-        nav = float(nav_data[0]['nav'])
-        nav_date = nav_data[0]['date']
+        nav      = float(nav_data[0]['nav'])
+        nav_date = nav_data[0]['date']  # format: DD-Mon-YYYY
         print(f"  Gold NAV ok: {nav} (date: {nav_date})")
-        return nav
+        return nav, nav_date
     except Exception as e:
         print(f"  Gold NAV failed: {e}")
-        return None
+        return None, None
 
 
 # Fetch live data
-price_today, pe_today = scrape_nse()
-nav_today = scrape_gold_nav()
+price_today, pe_today, _ = scrape_nse()
+nav_today, nav_date = scrape_gold_nav()
 
 if price_today is None or pe_today is None:
     print("FATAL: Could not fetch NSE data. Exiting.")
@@ -132,6 +172,17 @@ if price_today is None or pe_today is None:
 if nav_today is None:
     print("FATAL: Could not fetch Gold NAV. Exiting.")
     exit(1)
+
+# ── Freshness check ────────────────────────────────────────────────
+# If NSE returns the exact same price as the last known row, it's serving
+# stale data (common overnight). Abort so we don't write a bad row.
+if lookback_data:
+    last_lb_price = lookback_data[-1]['price']
+    last_lb_date  = lookback_data[-1]['date']
+    if price_today == last_lb_price and last_lb_date != TODAY_STR:
+        print(f"STALE DATA: NSE price ({price_today}) matches last row ({last_lb_date}).")
+        print(f"NSE API not yet updated for today. Exiting without writing.")
+        exit(0)
 
 # Build arrays for indicator calculation
 all_historical = lookback_data + [r for r in live_rows if r['date'] != TODAY_STR]
@@ -179,6 +230,7 @@ print(f"    PE={pe_today}, PE%ile={round(pe_pct*100,1) if pe_pct else 'N/A'}%")
 print(f"    Price={price_today}, MA{MA_LB}={round(p_ma,2) if p_ma else 'N/A'}")
 print(f"    Gold={nav_today}, GoldMA{GOLD_MA_LB}={round(g_ma,4) if g_ma else 'N/A'}")
 print(f"    DrawDown={round(dd*100,2)}%, Triggers={tc}/4")
+print(f"    t_pe_floor={t_pe_floor}, t_pe_ceiling={t_pe_ceiling}, t_dd={t_dd}, t_ma={t_ma}")
 
 # T+2 Settlement State Machine
 if live_rows:
@@ -303,18 +355,20 @@ new_row = {
 
 live_rows.append(new_row)
 
-# Add today to lookback_data too
-new_lookback_row = {
-    "date"     : TODAY_STR,
-    "pe"       : round(pe_today, 2),
-    "pe_pct"   : round(pe_pct * 100, 2) if pe_pct is not None else None,
-    "price"    : round(price_today, 2),
-    "price_ma" : round(p_ma, 2) if p_ma is not None else None,
-    "gold_nav" : round(nav_today, 4),
-    "gold_ma"  : round(g_ma, 4) if g_ma is not None else None,
-    "triggers" : tc,
-}
-lookback_data.append(new_lookback_row)
+# Add today to lookback_data too (skip if already there from a previous partial run)
+lookback_dates = [r['date'] for r in lookback_data]
+if TODAY_STR not in lookback_dates:
+    new_lookback_row = {
+        "date"     : TODAY_STR,
+        "pe"       : round(pe_today, 2),
+        "pe_pct"   : round(pe_pct * 100, 2) if pe_pct is not None else None,
+        "price"    : round(price_today, 2),
+        "price_ma" : round(p_ma, 2) if p_ma is not None else None,
+        "gold_nav" : round(nav_today, 4),
+        "gold_ma"  : round(g_ma, 4) if g_ma is not None else None,
+        "triggers" : tc,
+    }
+    lookback_data.append(new_lookback_row)
 
 # Write history.json
 output = {
@@ -361,4 +415,4 @@ else:
 
 print(f"\n{'='*55}")
 print(f"  Done. Asset: {new_asset} | Signal: {signal}")
-print(f"{'='*55}\n")
+print(f"{'='*55}\n") 
