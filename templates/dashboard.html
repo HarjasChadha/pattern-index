@@ -276,11 +276,14 @@ function render() {
   );
 
   // ── Trigger chips ──
-  const triggerFlags  = [
-    latest.t_pe_floor   === true,
-    latest.t_pe_ceiling === true,
-    latest.t_dd         === true,
-    latest.t_ma         === true,
+  const pe_pct = latest.pe_pct ?? 0;
+const p      = params;
+const triggerFlags = [
+    pe_pct < (p.pe_floor   ?? 0.05) * 100,
+    pe_pct > (p.pe_ceiling ?? 0.80) * 100,
+    (latest.portfolio_dd ?? 0) < -(p.dd_threshold ?? 0.12) * 100,
+    latest.price != null && latest.price_ma != null && latest.price < latest.price_ma,
+];
   ];
   const triggerLabels = ['PE Below Floor', 'PE Above Ceiling', 'DD > Threshold', 'Price < MA'];
   const chips = triggerLabels.map((lbl, i) =>
