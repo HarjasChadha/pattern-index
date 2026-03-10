@@ -252,10 +252,10 @@ function render() {
 
   // ── Signal banner class ──
   const sig = latest.signal || '';
-  let bannerClass = 'stay', bannerIcon = '✅';
+  let bannerClass = 'stay', bannerIcon = '▲';
   if (sig.includes('EXIT') || sig.includes('→')) { bannerClass = 'exit'; bannerIcon = '🚨'; }
   if (sig.includes('recovery'))                  { bannerClass = 'move'; bannerIcon = '🔄'; }
-  if (sig.includes('BOUGHT'))                    { bannerClass = 'move'; bannerIcon = '✅'; }
+  if (sig.includes('BOUGHT'))                    { bannerClass = 'move'; bannerIcon = '▲'; }
   if (sig.includes('SELLING'))                   { bannerClass = 'exit'; bannerIcon = '⏳'; }
 
   const assetClass = (latest.asset || '').toLowerCase();
@@ -275,13 +275,13 @@ function render() {
     (latest.t_ma         ? 1 : 0)
   );
 
-  // ── Trigger chips — computed from data (individual flags may be absent) ──
+  // ── Trigger chips — use individual flags if present, else compute from data ──
   const pe_pct_val = latest.pe_pct ?? 0;
   const triggerFlags = [
-    latest.t_pe_floor   != null ? latest.t_pe_floor   === true : pe_pct_val < (params.pe_floor   ?? 0.05) * 100,
-    latest.t_pe_ceiling != null ? latest.t_pe_ceiling === true : pe_pct_val > (params.pe_ceiling ?? 0.80) * 100,
-    latest.t_dd         != null ? latest.t_dd         === true : (latest.portfolio_dd ?? 0) < -(params.dd_threshold ?? 0.12) * 100,
-    latest.t_ma         != null ? latest.t_ma         === true : (latest.price != null && latest.price_ma != null && latest.price < latest.price_ma),
+    latest.t_pe_floor   != null ? !!latest.t_pe_floor   : pe_pct_val < (params.pe_floor   ?? 0.05) * 100,
+    latest.t_pe_ceiling != null ? !!latest.t_pe_ceiling : pe_pct_val > (params.pe_ceiling ?? 0.80) * 100,
+    latest.t_dd         != null ? !!latest.t_dd         : (latest.portfolio_dd ?? 0) < -(params.dd_threshold ?? 0.12) * 100,
+    latest.t_ma         != null ? !!latest.t_ma         : (latest.price != null && latest.price_ma != null && latest.price < latest.price_ma),
   ];
   const triggerLabels = ['PE Below Floor', 'PE Above Ceiling', 'DD > Threshold', 'Price < MA'];
   const chips = triggerLabels.map((lbl, i) =>
@@ -443,7 +443,7 @@ function render() {
 
 // ── Portfolio sparkline (live_rows) ─────────────────────────────
 function buildPortfolioSparkline(data) {
-  if (data.length < 2) return '<p style="color:var(--sub);font-size:12px;padding:8px 0">Tracking starts today — chart will build over time ✅</p>';
+  if (data.length < 2) return '<p style="color:var(--sub);font-size:12px;padding:8px 0">Tracking starts today — chart will build over time</p>';
 
   const pvs = data.map(r => r.portfolio_value ?? 0);
   const bvs = data.map(r => r.benchmark_value ?? 0);
