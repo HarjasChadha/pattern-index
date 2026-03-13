@@ -8,7 +8,7 @@
   "ma_lookback": 20,
   "gold_ma_lookback": 50,
   "initial_capital": 100000.0,
-  "equity_etf": "IICP",
+  "equity_etf": "ICICIM150",
   "gold_etf": "GOLDBEES",
   "debt_etf": "EBBETF0431"
 }
