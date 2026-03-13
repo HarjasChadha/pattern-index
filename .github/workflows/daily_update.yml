@@ -2,7 +2,7 @@ name: Daily Update
 
 on:
   schedule:
-    - cron: '0 18 * * 1-5'   # 11:30 PM IST (18:00 UTC), weekdays
+    - cron: '20 10 * * 1-5'   # 3:50 PM IST (10:20 UTC), weekdays
   workflow_dispatch:           # manual trigger
 
 jobs:
