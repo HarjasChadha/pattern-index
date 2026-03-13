@@ -1,0 +1,14 @@
+{
+  "index_label": "MIDCAP 150",
+  "nse_slug": "NIFTY%20MIDCAP%20150",
+  "pe_lookback": 126,
+  "pe_floor": 0.15,
+  "pe_ceiling": 0.8,
+  "dd_threshold": 0.2,
+  "ma_lookback": 20,
+  "gold_ma_lookback": 50,
+  "initial_capital": 100000.0,
+  "equity_etf": "IICP",
+  "gold_etf": "GOLDBEES",
+  "debt_etf": "EBBETF0431"
+}
