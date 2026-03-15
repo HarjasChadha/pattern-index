@@ -335,7 +335,10 @@ function render() {
       <h1>Pattern Index</h1>
       <div class="last-updated">Updated ${latest.date}</div>
     </div>
-    <span class="index-label">${idx}</span>
+    <div style="display:flex;align-items:center;gap:12px">
+      <a href="charts.html" style="font-size:11px;font-family:monospace;letter-spacing:0.08em;padding:5px 12px;border-radius:5px;text-decoration:none;border:1px solid rgba(203,166,247,0.25);color:rgba(203,166,247,0.8);background:rgba(203,166,247,0.06);">↗ CHARTS</a>
+      <span class="index-label">${idx}</span>
+    </div>
   </div>
 
   <div class="signal-banner ${bannerClass}">
