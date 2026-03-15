@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pattern Index — Charts</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/hammerjs/2.0.8/hammer.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;800&display=swap');
+
+  :root {
+    --bg:       #080b10;
+    --surface:  #0d1117;
+    --card:     #111620;
+    --border:   #1e2433;
+    --text:     #cdd6f4;
+    --sub:      #585b70;
+    --dim:      #313244;
+    --equity:   #a6e3a1;
+    --gold:     #f9e2af;
+    --debt:     #89b4fa;
+    --danger:   #f38ba8;
+    --accent:   #cba6f7;
+    --pe:       #fab387;
+    --ma20:     #89dceb;
+    --ma50:     #f9e2af;
+    --ma126:    #cba6f7;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Header ─────────────────────────────────────────── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header-left { display: flex; align-items: center; gap: 16px; }
+  .back-btn {
+    display: flex; align-items: center; gap: 6px;
+    color: var(--sub); text-decoration: none;
+    font-size: 12px; letter-spacing: 0.05em;
+    transition: color 0.15s;
+  }
+  .back-btn:hover { color: var(--text); }
+  .header-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 15px; font-weight: 800;
+    letter-spacing: 0.08em;
+    color: var(--text);
+  }
+  .header-badge {
+    font-size: 10px; font-weight: 600;
+    background: rgba(203,166,247,0.12);
+    color: var(--accent);
+    border: 1px solid rgba(203,166,247,0.2);
+    padding: 2px 8px; border-radius: 4px;
+    letter-spacing: 0.1em;
+  }
+  .last-updated { font-size: 11px; color: var(--sub); }
+
+  /* ── Layout ─────────────────────────────────────────── */
+  .main { padding: 20px 24px; display: flex; flex-direction: column; gap: 20px; }
+
+  /* ── Control Bar ────────────────────────────────────── */
+  .controls {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    display: flex; flex-wrap: wrap; gap: 18px; align-items: center;
+  }
+  .ctrl-group { display: flex; align-items: center; gap: 8px; }
+  .ctrl-label {
+    font-size: 10px; letter-spacing: 0.1em;
+    color: var(--sub); text-transform: uppercase;
+  }
+  .toggle-group { display: flex; gap: 4px; }
+  .toggle-btn {
+    padding: 4px 10px; border-radius: 5px;
+    border: 1px solid var(--border);
+    background: transparent; color: var(--sub);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .toggle-btn:hover { border-color: var(--dim); color: var(--text); }
+  .toggle-btn.active {
+    background: rgba(203,166,247,0.12);
+    border-color: rgba(203,166,247,0.35);
+    color: var(--accent);
+  }
+  .toggle-btn.active.eq  { background: rgba(166,227,161,0.1);  border-color: rgba(166,227,161,0.3);  color: var(--equity); }
+  .toggle-btn.active.gd  { background: rgba(249,226,175,0.1);  border-color: rgba(249,226,175,0.3);  color: var(--gold);   }
+  .toggle-btn.active.dt  { background: rgba(137,180,250,0.1);  border-color: rgba(137,180,250,0.3);  color: var(--debt);   }
+  .toggle-btn.active.idx { background: rgba(203,166,247,0.12); border-color: rgba(203,166,247,0.3);  color: var(--accent); }
+  .toggle-btn.active.pe  { background: rgba(250,179,135,0.1);  border-color: rgba(250,179,135,0.3);  color: var(--pe);     }
+
+  .divider { width: 1px; height: 28px; background: var(--border); }
+
+  .reset-btn {
+    padding: 4px 12px; border-radius: 5px;
+    border: 1px solid var(--border);
+    background: transparent; color: var(--sub);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; cursor: pointer;
+    transition: all 0.15s;
+    margin-left: auto;
+  }
+  .reset-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── Chart Cards ────────────────────────────────────── */
+  .chart-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .chart-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 18px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .chart-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px; font-weight: 600;
+    letter-spacing: 0.06em;
+  }
+  .chart-hint { font-size: 10px; color: var(--sub); letter-spacing: 0.04em; }
+  .chart-body { padding: 12px 18px 16px; position: relative; }
+  .chart-body canvas { width: 100% !important; }
+
+  /* ── Stats Row ──────────────────────────────────────── */
+  .stats-row {
+    display: flex; gap: 0;
+    border-top: 1px solid var(--border);
+  }
+  .stat {
+    flex: 1; padding: 10px 16px;
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .stat:last-child { border-right: none; }
+  .stat-label { font-size: 9px; color: var(--sub); letter-spacing: 0.1em; text-transform: uppercase; }
+  .stat-value { font-size: 14px; font-weight: 500; }
+  .pos { color: var(--equity); }
+  .neg { color: var(--danger); }
+  .neu { color: var(--text); }
+
+  /* ── Legend ─────────────────────────────────────────── */
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 14px;
+    padding: 10px 18px;
+    border-top: 1px solid var(--border);
+    font-size: 11px; color: var(--sub);
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; cursor: pointer; transition: color 0.15s; }
+  .legend-item:hover { color: var(--text); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .legend-line { width: 16px; height: 2px; flex-shrink: 0; }
+  .legend-dash { width: 16px; height: 2px; flex-shrink: 0;
+    background: repeating-linear-gradient(90deg, currentColor 0, currentColor 4px, transparent 4px, transparent 7px); }
+
+  /* ── Loading ────────────────────────────────────────── */
+  .loading-screen {
+    display: flex; align-items: center; justify-content: center;
+    height: 60vh; flex-direction: column; gap: 12px;
+    color: var(--sub); font-size: 12px; letter-spacing: 0.08em;
+  }
+  .spinner {
+    width: 24px; height: 24px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Tooltip override ───────────────────────────────── */
+  .chartjs-tooltip { pointer-events: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <a href="index.html" class="back-btn">← DASHBOARD</a>
+    <span style="color:var(--border)">|</span>
+    <span class="header-title">PATTERN INDEX</span>
+    <span class="header-badge">CHARTS</span>
+  </div>
+  <span class="last-updated" id="lastUpdated">—</span>
+</header>
+
+<div class="main" id="main">
+  <div class="loading-screen">
+    <div class="spinner"></div>
+    <span>LOADING DATA</span>
+  </div>
+</div>
+
+<script>
+// ── Data source ───────────────────────────────────────────────────
+const GITHUB_USER   = 'HarjasChadha';
+const GITHUB_REPO   = 'pattern-index';
+const GITHUB_BRANCH = 'main';
+const RAW = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}`;
+
+let lookbackData = [], liveRows = [], params = {};
+let allData = [];   // merged, chronological
+
+// Active overlays state
+const state = {
+  showIndex:  true,
+  showIICP:   false,
+  showGold:   false,
+  showDebt:   false,
+  showMA20:   true,
+  showMA50:   false,
+  showMA126:  false,
+  showPE:     false,
+  showSignals:true,
+  range:      'ALL',   // ALL | 1Y | 6M | 3M | 1M
+};
+
+// ── Fetch ─────────────────────────────────────────────────────────
+async function loadData() {
+  const bust = `?t=${Date.now()}`;
+  const [h, p] = await Promise.all([
+    fetch(`${RAW}/data/history.json${bust}`).then(r => r.json()),
+    fetch(`${RAW}/params.json${bust}`).then(r => r.json()),
+  ]);
+  params       = p;
+  lookbackData = h.lookback_data || [];
+  liveRows     = h.live_rows     || [];
+
+  // Merge: lookback + live, dedupe by date, sort
+  const map = new Map();
+  [...lookbackData, ...liveRows].forEach(r => map.set(r.date, r));
+  allData = [...map.values()].sort((a,b) => a.date.localeCompare(b.date));
+
+  if (liveRows.length) {
+    const last = liveRows[liveRows.length - 1];
+    document.getElementById('lastUpdated').textContent = `UPDATED ${last.date}`;
+  }
+}
+
+// ── Rolling MA helper (pure JS — no Numba) ───────────────────────
+function rollingMA(arr, lb) {
+  return arr.map((_, i) => {
+    if (i < lb - 1) return null;
+    const slice = arr.slice(i - lb + 1, i + 1);
+    return slice.reduce((a,b) => a + b, 0) / lb;
+  });
+}
+
+// ── Normalise to 100 ──────────────────────────────────────────────
+function normalise(arr) {
+  const first = arr.find(v => v != null);
+  if (!first) return arr;
+  return arr.map(v => v == null ? null : (v / first) * 100);
+}
+
+// ── Filter by range ───────────────────────────────────────────────
+function filterRange(data, range) {
+  if (range === 'ALL') return data;
+  const days = { '1Y': 365, '6M': 182, '3M': 91, '1M': 30 }[range] || 365;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  const cutStr = cutoff.toISOString().slice(0, 10);
+  return data.filter(r => r.date >= cutStr);
+}
+
+// ── Colours ───────────────────────────────────────────────────────
+const C = {
+  index:  'rgba(203,166,247,0.9)',
+  iicp:   'rgba(166,227,161,0.9)',
+  gold:   'rgba(249,226,175,0.9)',
+  debt:   'rgba(137,180,250,0.9)',
+  ma20:   'rgba(137,220,235,0.8)',
+  ma50:   'rgba(249,226,175,0.8)',
+  ma126:  'rgba(203,166,247,0.6)',
+  pe:     'rgba(250,179,135,0.9)',
+  signal_exit: 'rgba(243,139,168,0.8)',
+  signal_enter:'rgba(166,227,161,0.8)',
+};
+
+// ── Chart defaults ────────────────────────────────────────────────
+Chart.defaults.color         = '#585b70';
+Chart.defaults.borderColor   = '#1e2433';
+Chart.defaults.font.family   = "'JetBrains Mono', monospace";
+Chart.defaults.font.size     = 11;
+
+const ZOOM_PLUGIN_CONFIG = {
+  zoom: {
+    wheel:   { enabled: true },
+    pinch:   { enabled: true },
+    mode:    'x',
+    onZoomComplete: updateStats,
+  },
+  pan: {
+    enabled: true,
+    mode:    'x',
+    onPanComplete: updateStats,
+  },
+};
+
+// Store chart instances
+let priceChart = null;
+let peChart    = null;
+let pfChart    = null;
+
+// ── Build main page ───────────────────────────────────────────────
+function buildPage() {
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    ${buildControls()}
+    <div class="chart-card" id="priceCard">
+      <div class="chart-header">
+        <span class="chart-title">PRICE CHART</span>
+        <span class="chart-hint">SCROLL TO ZOOM · DRAG TO PAN · DOUBLE-CLICK TO RESET</span>
+      </div>
+      <div class="chart-body" style="height:420px">
+        <canvas id="priceCanvas"></canvas>
+      </div>
+      <div class="stats-row" id="priceStats"></div>
+      <div class="legend" id="priceLegend"></div>
+    </div>
+
+    <div class="chart-card" id="peCard">
+      <div class="chart-header">
+        <span class="chart-title">PE RATIO · ${params.pe_lookback||126}D PERCENTILE</span>
+        <span class="chart-hint">FLOOR ${((params.pe_floor||0.15)*100).toFixed(0)}% · CEILING ${((params.pe_ceiling||0.8)*100).toFixed(0)}%</span>
+      </div>
+      <div class="chart-body" style="height:220px">
+        <canvas id="peCanvas"></canvas>
+      </div>
+      <div class="legend" id="peLegend"></div>
+    </div>
+
+    <div class="chart-card" id="pfCard">
+      <div class="chart-header">
+        <span class="chart-title">PORTFOLIO vs BENCHMARK</span>
+        <span class="chart-hint">PATTERN INDEX vs MIDCAP 150 ETF (IICP) BUY & HOLD · BASE ₹1,00,000</span>
+      </div>
+      <div class="chart-body" style="height:300px">
+        <canvas id="pfCanvas"></canvas>
+      </div>
+      <div class="stats-row" id="pfStats"></div>
+      <div class="legend" id="pfLegend"></div>
+    </div>
+  `;
+
+  renderCharts();
+}
+
+function buildControls() {
+  return `
+  <div class="controls">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Assets</span>
+      <div class="toggle-group">
+        <button class="toggle-btn idx ${state.showIndex ?'active':''}" onclick="toggle('showIndex',  this, 'idx')">MIDCAP 150</button>
+        <button class="toggle-btn eq  ${state.showIICP  ?'active':''}" onclick="toggle('showIICP',   this, 'eq' )">IICP ETF</button>
+        <button class="toggle-btn gd  ${state.showGold  ?'active':''}" onclick="toggle('showGold',   this, 'gd' )">GOLDBEES</button>
+        <button class="toggle-btn dt  ${state.showDebt  ?'active':''}" onclick="toggle('showDebt',   this, 'dt' )">EBBETF</button>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">MA</span>
+      <div class="toggle-group">
+        <button class="toggle-btn ${state.showMA20 ?'active':''}" onclick="toggle('showMA20',  this)">MA20</button>
+        <button class="toggle-btn ${state.showMA50 ?'active':''}" onclick="toggle('showMA50',  this)">MA50</button>
+        <button class="toggle-btn ${state.showMA126?'active':''}" onclick="toggle('showMA126', this)">MA126</button>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">Overlay</span>
+      <div class="toggle-group">
+        <button class="toggle-btn pe ${state.showPE     ?'active pe':''}"    onclick="toggle('showPE',      this, 'pe')">PE RATIO</button>
+        <button class="toggle-btn    ${state.showSignals?'active':''}"       onclick="toggle('showSignals', this)">SIGNALS</button>
+        <button class="toggle-btn    ${state.normalise  ?'active':''}"       onclick="toggle('normalise',   this)" id="normBtn">NORMALISE</button>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">Range</span>
+      <div class="toggle-group">
+        ${['1M','3M','6M','1Y','ALL'].map(r =>
+          `<button class="toggle-btn ${state.range===r?'active':''}" onclick="setRange('${r}', this)">${r}</button>`
+        ).join('')}
+      </div>
+    </div>
+    <button class="reset-btn" onclick="resetZoom()">⊞ RESET ZOOM</button>
+  </div>`;
+}
+
+// ── Toggle handler ────────────────────────────────────────────────
+function toggle(key, btn, colorClass) {
+  state[key] = !state[key];
+  if (state[key]) {
+    btn.classList.add('active');
+    if (colorClass) btn.classList.add(colorClass);
+  } else {
+    btn.classList.remove('active');
+    if (colorClass) btn.classList.remove(colorClass);
+  }
+  renderCharts();
+}
+
+function setRange(r, btn) {
+  state.range = r;
+  document.querySelectorAll('.toggle-group button').forEach(b => {
+    if (['1M','3M','6M','1Y','ALL'].includes(b.textContent)) b.classList.remove('active');
+  });
+  btn.classList.add('active');
+  renderCharts();
+}
+
+function resetZoom() {
+  if (priceChart) priceChart.resetZoom();
+  if (peChart)    peChart.resetZoom();
+}
+
+// ── Render charts ─────────────────────────────────────────────────
+function renderCharts() {
+  const filtered = filterRange(allData, state.range);
+  const labels   = filtered.map(r => r.date);
+
+  // Raw series
+  const idxPrices  = filtered.map(r => r.index_price ?? r.price ?? null);
+  const iicpPrices = filtered.map(r => r.iicp_price  ?? null);
+  const goldPrices = filtered.map(r => r.gold_price  ?? r.gold_nav ?? null);
+  const debtPrices = filtered.map(r => r.debt_price  ?? null);
+  const peVals     = filtered.map(r => r.pe           ?? null);
+  const pePct      = filtered.map(r => r.pe_pct       ?? null);
+
+  // Decide what to display — normalised or raw
+  const doNorm = state.normalise;
+
+  const disp = {
+    idx:  doNorm ? normalise(idxPrices)  : idxPrices,
+    iicp: doNorm ? normalise(iicpPrices) : iicpPrices,
+    gold: doNorm ? normalise(goldPrices) : goldPrices,
+    debt: doNorm ? normalise(debtPrices) : debtPrices,
+  };
+
+  // MAs — always on raw idxPrices (signal indicators)
+  const ma20raw  = rollingMA(idxPrices,  20);
+  const ma50raw  = rollingMA(idxPrices,  50);
+  const ma126raw = rollingMA(idxPrices, 126);
+  const disp_ma20  = doNorm ? normalise(ma20raw)  : ma20raw;
+  const disp_ma50  = doNorm ? normalise(ma50raw)  : ma50raw;
+  const disp_ma126 = doNorm ? normalise(ma126raw) : ma126raw;
+
+  // Signal annotations — exit/enter dates from live_rows
+  const signalAnnotations = {};
+  if (state.showSignals) {
+    liveRows.forEach((r, i) => {
+      if (r.signal && !r.signal.startsWith('STAY') && r.signal !== 'NORMAL') {
+        const isExit = r.signal.includes('EXIT') || r.signal.includes('→');
+        signalAnnotations[`sig_${i}`] = {
+          type: 'line',
+          xMin: r.date, xMax: r.date,
+          borderColor: isExit ? C.signal_exit : C.signal_enter,
+          borderWidth: 1.5,
+          borderDash: [4, 3],
+          label: {
+            content: r.signal.split(' ')[0],
+            enabled: false,
+          }
+        };
+      }
+    });
+  }
+
+  // ── Build datasets ────────────────────────────────────────────
+  const datasets = [];
+  const legendItems = [];
+
+  if (state.showIndex) {
+    datasets.push({ label: 'MIDCAP 150', data: disp.idx,
+      borderColor: C.index, borderWidth: 2,
+      pointRadius: 0, tension: 0.1, fill: false, yAxisID: 'y' });
+    legendItems.push({ color: C.index, label: doNorm ? 'MIDCAP 150 (norm)' : 'MIDCAP 150', type: 'line' });
+  }
+  if (state.showIICP) {
+    datasets.push({ label: 'IICP ETF', data: disp.iicp,
+      borderColor: C.iicp, borderWidth: 2,
+      pointRadius: 0, tension: 0.1, fill: false, yAxisID: doNorm ? 'y' : 'y2' });
+    legendItems.push({ color: C.iicp, label: doNorm ? 'IICP (norm)' : 'IICP ETF', type: 'line' });
+  }
+  if (state.showGold) {
+    datasets.push({ label: 'GOLDBEES', data: disp.gold,
+      borderColor: C.gold, borderWidth: 2,
+      pointRadius: 0, tension: 0.1, fill: false, yAxisID: doNorm ? 'y' : 'y2' });
+    legendItems.push({ color: C.gold, label: doNorm ? 'GOLDBEES (norm)' : 'GOLDBEES', type: 'line' });
+  }
+  if (state.showDebt) {
+    datasets.push({ label: 'EBBETF', data: disp.debt,
+      borderColor: C.debt, borderWidth: 2,
+      pointRadius: 0, tension: 0.1, fill: false, yAxisID: doNorm ? 'y' : 'y3' });
+    legendItems.push({ color: C.debt, label: doNorm ? 'EBBETF (norm)' : 'EBBETF', type: 'line' });
+  }
+  if (state.showMA20 && state.showIndex) {
+    datasets.push({ label: 'MA20', data: disp_ma20,
+      borderColor: C.ma20, borderWidth: 1.5, borderDash: [5,3],
+      pointRadius: 0, tension: 0.1, fill: false, yAxisID: 'y' });
+    legendItems.push({ color: C.ma20, label: 'MA20', type: 'dash' });
+  }
+  if (state.showMA50) {
+    datasets.push({ label: 'MA50', data: disp_ma50,
+      borderColor: C.ma50, borderWidth: 1.5, borderDash: [5,3],
+      pointRadius: 0, tension: 0.1, fill: false, yAxisID: 'y' });
+    legendItems.push({ color: C.ma50, label: 'MA50', type: 'dash' });
+  }
+  if (state.showMA126) {
+    datasets.push({ label: 'MA126', data: disp_ma126,
+      borderColor: C.ma126, borderWidth: 1.5, borderDash: [5,3],
+      pointRadius: 0, tension: 0.1, fill: false, yAxisID: 'y' });
+    legendItems.push({ color: C.ma126, label: 'MA126', type: 'dash' });
+  }
+  if (state.showPE) {
+    datasets.push({ label: 'PE Ratio', data: peVals,
+      borderColor: C.pe, borderWidth: 1.5,
+      pointRadius: 0, tension: 0.1, fill: false, yAxisID: 'yPE' });
+    legendItems.push({ color: C.pe, label: 'PE Ratio', type: 'line' });
+  }
+
+  // ── Y axes config ─────────────────────────────────────────────
+  const scales = {
+    x: {
+      type: 'category',
+      ticks: {
+        maxTicksLimit: 10,
+        maxRotation: 0,
+        color: '#585b70',
+        callback: (val, i, ticks) => {
+          const date = labels[i];
+          if (!date) return '';
+          return date.slice(0, 7); // YYYY-MM
+        }
+      },
+      grid: { color: 'rgba(30,36,51,0.8)' }
+    },
+    y: {
+      position: 'left',
+      ticks: { color: '#585b70', maxTicksLimit: 6 },
+      grid: { color: 'rgba(30,36,51,0.6)' },
+      title: { display: true, text: doNorm ? 'INDEXED (base=100)' : 'INDEX PRICE', color: '#585b70', font: { size: 10 } }
+    }
+  };
+
+  if (!doNorm && (state.showIICP || state.showGold)) {
+    scales.y2 = {
+      position: 'right',
+      ticks: { color: '#585b70', maxTicksLimit: 6 },
+      grid: { display: false },
+      title: { display: true, text: 'ETF PRICE (₹)', color: '#585b70', font: { size: 10 } }
+    };
+  }
+  if (!doNorm && state.showDebt) {
+    scales.y3 = {
+      position: 'right',
+      ticks: { color: '#585b70', maxTicksLimit: 6 },
+      grid: { display: false },
+      title: { display: true, text: 'DEBT ETF (₹)', color: '#585b70', font: { size: 10 } }
+    };
+  }
+  if (state.showPE) {
+    scales.yPE = {
+      position: 'right',
+      ticks: { color: C.pe, maxTicksLimit: 5 },
+      grid: { display: false },
+      title: { display: true, text: 'PE RATIO', color: C.pe, font: { size: 10 } }
+    };
+  }
+
+  // ── Draw / update price chart ─────────────────────────────────
+  const priceCtx = document.getElementById('priceCanvas').getContext('2d');
+  if (priceChart) { priceChart.destroy(); }
+
+  priceChart = new Chart(priceCtx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#111620',
+          borderColor: '#1e2433',
+          borderWidth: 1,
+          titleColor: '#cdd6f4',
+          bodyColor: '#585b70',
+          padding: 10,
+          callbacks: {
+            title: items => items[0]?.label || '',
+            label: item => {
+              const v = item.raw;
+              if (v == null) return null;
+              return ` ${item.dataset.label}: ${doNorm ? v.toFixed(1) : v.toLocaleString('en-IN', {maximumFractionDigits: 2})}`;
+            }
+          }
+        },
+        zoom: ZOOM_PLUGIN_CONFIG,
+        annotation: { annotations: signalAnnotations },
+      },
+      scales,
+    }
+  });
+
+  // ── PE percentile chart ───────────────────────────────────────
+  const peCtx = document.getElementById('peCanvas').getContext('2d');
+  if (peChart) { peChart.destroy(); }
+
+  const lb     = params.pe_lookback || 126;
+  const floor  = (params.pe_floor   || 0.15) * 100;
+  const ceiling= (params.pe_ceiling || 0.80) * 100;
+
+  peChart = new Chart(peCtx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: `PE %ile (${lb}d)`, data: pePct,
+          borderColor: C.pe, borderWidth: 2,
+          pointRadius: 0, tension: 0.1, fill: {
+            target: { value: floor },
+            above: 'transparent',
+            below: 'rgba(250,179,135,0.08)',
+          },
+          yAxisID: 'y'
+        },
+        {
+          label: 'PE Raw', data: peVals,
+          borderColor: 'rgba(250,179,135,0.3)', borderWidth: 1.5, borderDash: [4,3],
+          pointRadius: 0, tension: 0.1, fill: false,
+          yAxisID: 'yRaw'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#111620',
+          borderColor: '#1e2433',
+          borderWidth: 1,
+          titleColor: '#cdd6f4',
+          bodyColor: '#585b70',
+          padding: 10,
+        },
+        zoom: ZOOM_PLUGIN_CONFIG,
+        annotation: {
+          annotations: {
+            floorLine: {
+              type: 'line', yMin: floor, yMax: floor, yScaleID: 'y',
+              borderColor: 'rgba(166,227,161,0.5)', borderWidth: 1.5, borderDash: [5,3],
+              label: { content: `FLOOR ${floor.toFixed(0)}%`, enabled: true,
+                backgroundColor: 'transparent', color: 'rgba(166,227,161,0.7)',
+                font: { size: 9 }, position: 'start' }
+            },
+            ceilLine: {
+              type: 'line', yMin: ceiling, yMax: ceiling, yScaleID: 'y',
+              borderColor: 'rgba(243,139,168,0.5)', borderWidth: 1.5, borderDash: [5,3],
+              label: { content: `CEIL ${ceiling.toFixed(0)}%`, enabled: true,
+                backgroundColor: 'transparent', color: 'rgba(243,139,168,0.7)',
+                font: { size: 9 }, position: 'start' }
+            },
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'category',
+          ticks: { maxTicksLimit: 10, maxRotation: 0, color: '#585b70',
+            callback: (val, i) => labels[i]?.slice(0,7) || '' },
+          grid: { color: 'rgba(30,36,51,0.8)' }
+        },
+        y: {
+          position: 'left',
+          min: 0, max: 100,
+          ticks: { color: '#585b70', callback: v => v + '%' },
+          grid: { color: 'rgba(30,36,51,0.4)' },
+          title: { display: true, text: 'PE PERCENTILE', color: '#585b70', font: { size: 10 } }
+        },
+        yRaw: {
+          position: 'right',
+          ticks: { color: 'rgba(250,179,135,0.5)', maxTicksLimit: 5 },
+          grid: { display: false },
+          title: { display: true, text: 'PE VALUE', color: 'rgba(250,179,135,0.5)', font: { size: 10 } }
+        }
+      }
+    }
+  });
+
+  // Update legend
+  document.getElementById('priceLegend').innerHTML = legendItems.map(item => `
+    <div class="legend-item">
+      ${item.type === 'line'
+        ? `<div class="legend-line" style="background:${item.color}"></div>`
+        : `<div class="legend-dash" style="color:${item.color}"></div>`}
+      <span>${item.label}</span>
+    </div>`).join('');
+
+  document.getElementById('peLegend').innerHTML = `
+    <div class="legend-item"><div class="legend-line" style="background:${C.pe}"></div><span>PE PERCENTILE (${lb}d)</span></div>
+    <div class="legend-item"><div class="legend-dash" style="color:rgba(250,179,135,0.5)"></div><span>PE VALUE (right axis)</span></div>
+    <div class="legend-item"><div class="legend-dash" style="color:rgba(166,227,161,0.7)"></div><span>FLOOR ${floor.toFixed(0)}%</span></div>
+    <div class="legend-item"><div class="legend-dash" style="color:rgba(243,139,168,0.7)"></div><span>CEILING ${ceiling.toFixed(0)}%</span></div>`;
+
+  updateStats();
+  renderPortfolioChart();
+}
+
+// ── Stats below price chart ───────────────────────────────────────
+function updateStats() {
+  const filtered = filterRange(allData, state.range);
+  if (!filtered.length) return;
+
+  const idxPrices = filtered.map(r => r.index_price ?? r.price ?? null).filter(Boolean);
+  const first = idxPrices[0], last = idxPrices[idxPrices.length - 1];
+  const ret   = ((last - first) / first * 100).toFixed(2);
+  const peak  = Math.max(...idxPrices);
+  const dd    = (((last - peak) / peak) * 100).toFixed(2);
+  const vol   = (() => {
+    const rets = [];
+    for (let i = 1; i < idxPrices.length; i++)
+      rets.push((idxPrices[i] - idxPrices[i-1]) / idxPrices[i-1]);
+    const mean = rets.reduce((a,b)=>a+b,0)/rets.length;
+    const variance = rets.reduce((a,b)=>a+(b-mean)**2,0)/rets.length;
+    return (Math.sqrt(variance) * Math.sqrt(252) * 100).toFixed(1);
+  })();
+
+  document.getElementById('priceStats').innerHTML = `
+    <div class="stat">
+      <span class="stat-label">PERIOD RETURN</span>
+      <span class="stat-value ${ret>=0?'pos':'neg'}">${ret>=0?'+':''}${ret}%</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">CURRENT</span>
+      <span class="stat-value neu">₹${last?.toLocaleString('en-IN',{maximumFractionDigits:0})}</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">DRAWDOWN</span>
+      <span class="stat-value ${dd<0?'neg':'pos'}">${dd}%</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">ANN. VOL</span>
+      <span class="stat-value neu">${vol}%</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">DATA POINTS</span>
+      <span class="stat-value neu">${filtered.length}d</span>
+    </div>`;
+}
+
+// ── Double-click to reset zoom ────────────────────────────────────
+document.addEventListener('dblclick', e => {
+  if (e.target.tagName === 'CANVAS') resetZoom();
+});
+
+
+// ── Portfolio vs Benchmark chart ──────────────────────────────────
+function renderPortfolioChart() {
+  const pfCanvasEl = document.getElementById('pfCanvas');
+  if (!pfCanvasEl) return;
+
+  // Use only live_rows — that's where portfolio tracking lives
+  const data = filterRange(liveRows, state.range);
+  if (!data.length) {
+    document.getElementById('pfStats').innerHTML =
+      '<div class="stat"><span class="stat-label">STATUS</span><span class="stat-value neu">No live data yet</span></div>';
+    return;
+  }
+
+  const labels = data.map(r => r.date);
+  const pvVals = data.map(r => r.portfolio_value ?? null);
+  const bvVals = data.map(r => r.benchmark_value  ?? null);
+
+  // Asset background coloring
+  const assetColors = { EQUITY:'rgba(166,227,161,0.12)', GOLD:'rgba(249,226,175,0.12)',
+                        DEBT:'rgba(137,180,250,0.12)',  CASH:'rgba(139,143,168,0.08)' };
+  const bgAnnotations = {};
+  let segStart = null, segAsset = null;
+  data.forEach((r, i) => {
+    const asset = r.asset || 'EQUITY';
+    if (segStart === null) { segStart = i; segAsset = asset; }
+    if (asset !== segAsset || i === data.length - 1) {
+      const endIdx = i === data.length - 1 ? i : i - 1;
+      bgAnnotations[`bg_${i}`] = {
+        type: 'box',
+        xMin: labels[segStart], xMax: labels[endIdx],
+        backgroundColor: assetColors[segAsset] || 'transparent',
+        borderWidth: 0,
+      };
+      segStart = i; segAsset = asset;
+    }
+  });
+
+  if (pfChart) { pfChart.destroy(); }
+
+  const pfCtx = pfCanvasEl.getContext('2d');
+  pfChart = new Chart(pfCtx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Pattern Index',
+          data: pvVals,
+          borderColor: 'rgba(203,166,247,1)',
+          borderWidth: 2.5,
+          pointRadius: data.length < 30 ? 3 : 0,
+          pointBackgroundColor: 'rgba(203,166,247,1)',
+          tension: 0.1,
+          fill: {
+            target: 'origin',
+            above: 'rgba(203,166,247,0.04)',
+          },
+          yAxisID: 'y',
+        },
+        {
+          label: 'IICP B&H',
+          data: bvVals,
+          borderColor: 'rgba(166,227,161,0.7)',
+          borderWidth: 1.5,
+          borderDash: [5, 3],
+          pointRadius: 0,
+          tension: 0.1,
+          fill: false,
+          yAxisID: 'y',
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#111620',
+          borderColor: '#1e2433',
+          borderWidth: 1,
+          titleColor: '#cdd6f4',
+          bodyColor: '#585b70',
+          padding: 10,
+          callbacks: {
+            label: item => {
+              const v = item.raw;
+              if (v == null) return null;
+              const row = data[item.dataIndex];
+              const suffix = item.datasetIndex === 0 && row?.asset ? ` [${row.asset}]` : '';
+              return ` ${item.dataset.label}: ₹${v.toLocaleString('en-IN',{maximumFractionDigits:0})}${suffix}`;
+            }
+          }
+        },
+        zoom: ZOOM_PLUGIN_CONFIG,
+        annotation: { annotations: bgAnnotations },
+      },
+      scales: {
+        x: {
+          type: 'category',
+          ticks: { maxTicksLimit: 10, maxRotation: 0, color: '#585b70',
+            callback: (val, i) => labels[i]?.slice(0,7) || '' },
+          grid: { color: 'rgba(30,36,51,0.8)' }
+        },
+        y: {
+          position: 'left',
+          ticks: {
+            color: '#585b70',
+            callback: v => '₹' + (v/1000).toFixed(0) + 'k'
+          },
+          grid: { color: 'rgba(30,36,51,0.4)' },
+          title: { display: true, text: 'PORTFOLIO VALUE (₹)', color: '#585b70', font: { size: 10 } }
+        }
+      }
+    }
+  });
+
+  // Stats
+  const pFirst = pvVals.find(v => v != null);
+  const pLast  = pvVals.filter(v => v != null).at(-1);
+  const bFirst = bvVals.find(v => v != null);
+  const bLast  = bvVals.filter(v => v != null).at(-1);
+  const pRet   = pFirst ? ((pLast - pFirst) / pFirst * 100).toFixed(2) : '–';
+  const bRet   = bFirst ? ((bLast - bFirst) / bFirst * 100).toFixed(2) : '–';
+  const alpha  = (parseFloat(pRet) - parseFloat(bRet)).toFixed(2);
+  const pPeak  = Math.max(...pvVals.filter(v => v != null));
+  const pDD    = pLast && pPeak ? ((pLast - pPeak) / pPeak * 100).toFixed(2) : '–';
+  const days   = data.length;
+
+  document.getElementById('pfStats').innerHTML = `
+    <div class="stat">
+      <span class="stat-label">PATTERN INDEX</span>
+      <span class="stat-value ${pRet>=0?'pos':'neg'}">${pRet>=0?'+':''}${pRet}%</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">BENCHMARK (IICP)</span>
+      <span class="stat-value ${bRet>=0?'pos':'neg'}">${bRet>=0?'+':''}${bRet}%</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">ALPHA</span>
+      <span class="stat-value ${alpha>=0?'pos':'neg'}">${alpha>=0?'+':''}${alpha}%</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">MAX DRAWDOWN</span>
+      <span class="stat-value ${pDD<0?'neg':'pos'}">${pDD}%</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">DAYS TRACKED</span>
+      <span class="stat-value neu">${days}d</span>
+    </div>`;
+
+  document.getElementById('pfLegend').innerHTML = `
+    <div class="legend-item"><div class="legend-line" style="background:rgba(203,166,247,1)"></div><span>PATTERN INDEX</span></div>
+    <div class="legend-item"><div class="legend-dash" style="color:rgba(166,227,161,0.7)"></div><span>IICP BUY & HOLD</span></div>
+    <div class="legend-item"><div style="width:12px;height:12px;background:rgba(166,227,161,0.2);border-radius:2px;flex-shrink:0"></div><span>EQUITY</span></div>
+    <div class="legend-item"><div style="width:12px;height:12px;background:rgba(249,226,175,0.2);border-radius:2px;flex-shrink:0"></div><span>GOLD</span></div>
+    <div class="legend-item"><div style="width:12px;height:12px;background:rgba(137,180,250,0.2);border-radius:2px;flex-shrink:0"></div><span>DEBT</span></div>`;
+}
+
+// ── Boot ──────────────────────────────────────────────────────────
+(async () => {
+  try {
+    await loadData();
+    buildPage();
+  } catch(e) {
+    document.getElementById('main').innerHTML =
+      `<div class="loading-screen">⚠️ ${e.message}</div>`;
+  }
+})();
+</script>
+</body>
+</html>
