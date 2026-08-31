@@ -17867,6 +17867,18 @@
       "debt_price": 1432.21,
       "gold_ma": NaN,
       "triggers": 0
+    },
+    {
+      "date": "2026-08-31",
+      "pe": 29.4,
+      "pe_pct": 28.35,
+      "index_price": 23536.8,
+      "price_ma": 23441.02,
+      "iicp_price": 24.25,
+      "gold_price": 127.32,
+      "debt_price": 1436.39,
+      "gold_ma": NaN,
+      "triggers": 0
     }
   ],
   "live_rows": [
@@ -20843,6 +20855,31 @@
       "benchmark_value": 116125.95,
       "benchmark_dd": -0.0821,
       "portfolio_dd": -2.4592,
+      "is_live": true
+    },
+    {
+      "date": "2026-08-31",
+      "pe": 29.4,
+      "pe_pct": 28.35,
+      "index_price": 23536.8,
+      "price_ma": 23441.02,
+      "iicp_price": 24.25,
+      "gold_price": 127.32,
+      "debt_price": 1436.39,
+      "gold_ma": NaN,
+      "asset": "EQUITY",
+      "triggers": 0,
+      "t_pe_floor": false,
+      "t_pe_ceiling": false,
+      "t_dd": false,
+      "t_ma": false,
+      "signal": "STAY EQUITY",
+      "settlement_state": "NORMAL",
+      "pending_target": null,
+      "portfolio_value": 99965.77,
+      "benchmark_value": 115696.56,
+      "benchmark_dd": -0.4516,
+      "portfolio_dd": -2.8199,
       "is_live": true
     }
   ]
