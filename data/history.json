@@ -17903,6 +17903,18 @@
       "debt_price": 1431.77,
       "gold_ma": NaN,
       "triggers": 1
+    },
+    {
+      "date": "2026-09-03",
+      "pe": 28.9,
+      "pe_pct": 9.45,
+      "index_price": 23220.5,
+      "price_ma": 23417.33,
+      "iicp_price": 24.06,
+      "gold_price": 126.23,
+      "debt_price": 1439.55,
+      "gold_ma": NaN,
+      "triggers": 2
     }
   ],
   "live_rows": [
@@ -20954,6 +20966,31 @@
       "benchmark_value": 113740.46,
       "benchmark_dd": -2.1347,
       "portfolio_dd": -4.4629,
+      "is_live": true
+    },
+    {
+      "date": "2026-09-03",
+      "pe": 28.9,
+      "pe_pct": 9.45,
+      "index_price": 23220.5,
+      "price_ma": 23417.33,
+      "iicp_price": 24.06,
+      "gold_price": 126.23,
+      "debt_price": 1439.55,
+      "gold_ma": NaN,
+      "asset": "EQUITY",
+      "triggers": 2,
+      "t_pe_floor": true,
+      "t_pe_ceiling": false,
+      "t_dd": false,
+      "t_ma": true,
+      "signal": "EXIT EQUITY \u2192 DEBT",
+      "settlement_state": "SIGNAL_DAY",
+      "pending_target": "DEBT",
+      "portfolio_value": 99182.53,
+      "benchmark_value": 114790.07,
+      "benchmark_dd": -1.2315,
+      "portfolio_dd": -3.5813,
       "is_live": true
     }
   ]
