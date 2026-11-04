@@ -18431,6 +18431,18 @@
       "debt_price": 1417.52,
       "gold_ma": NaN,
       "triggers": 1
+    },
+    {
+      "date": "2026-11-04",
+      "pe": 27.3,
+      "pe_pct": 6.3,
+      "index_price": 21867.3,
+      "price_ma": 21354.62,
+      "iicp_price": 22.82,
+      "gold_price": 116.41,
+      "debt_price": 1422.01,
+      "gold_ma": NaN,
+      "triggers": 1
     }
   ],
   "live_rows": [
@@ -22581,6 +22593,31 @@
       "portfolio_value": NaN,
       "benchmark_value": 106154.58,
       "benchmark_dd": -8.6617,
+      "portfolio_dd": NaN,
+      "is_live": true
+    },
+    {
+      "date": "2026-11-04",
+      "pe": 27.3,
+      "pe_pct": 6.3,
+      "index_price": 21867.3,
+      "price_ma": 21354.62,
+      "iicp_price": 22.82,
+      "gold_price": 116.41,
+      "debt_price": 1422.01,
+      "gold_ma": NaN,
+      "asset": "CASH",
+      "triggers": 1,
+      "t_pe_floor": true,
+      "t_pe_ceiling": false,
+      "t_dd": false,
+      "t_ma": false,
+      "signal": "SOLD \u2192 CASH (buying EQUITY tomorrow)",
+      "settlement_state": "PENDING_BUY",
+      "pending_target": "EQUITY",
+      "portfolio_value": NaN,
+      "benchmark_value": 108874.04,
+      "benchmark_dd": -6.3218,
       "portfolio_dd": NaN,
       "is_live": true
     }
