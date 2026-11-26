@@ -207,24 +207,14 @@
 </div>
 
 <script>
-// Fetch from local origin when running locally, else GitHub raw (for GitHub Pages)
-const GITHUB_USER = 'HarjasChadha';
-const GITHUB_REPO = 'pattern-index';
-const GITHUB_BRANCH = 'main';
-const IS_LOCAL = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-const BASE_URL = IS_LOCAL
-  ? '.'
-  : `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}`;
-
 let liveRows = [], lookbackData = [], params = {};
 
 async function fetchAndRender() {
   try {
-    // Bust cache so GitHub Pages always serves latest committed file
     const bust = `?t=${Date.now()}`;
     const [histRes, paramsRes] = await Promise.all([
-      fetch(`${BASE_URL}/data/history.json${bust}`),
-      fetch(`${BASE_URL}/params.json${bust}`)
+      fetch(`./data/history.json${bust}`),
+      fetch(`./params.json${bust}`)
     ]);
     if (!histRes.ok)   throw new Error(`history.json: HTTP ${histRes.status}`);
     if (!paramsRes.ok) throw new Error(`params.json: HTTP ${paramsRes.status}`);

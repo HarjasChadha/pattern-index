@@ -218,15 +218,6 @@
 </div>
 
 <script>
-// ── Data source ───────────────────────────────────────────────────
-const GITHUB_USER   = 'HarjasChadha';
-const GITHUB_REPO   = 'pattern-index';
-const GITHUB_BRANCH = 'main';
-const IS_LOCAL = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-const BASE_URL = IS_LOCAL
-  ? '.'
-  : `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}`;
-
 let lookbackData = [], liveRows = [], params = {};
 let allData = [];   // merged, chronological
 
@@ -249,8 +240,8 @@ const state = {
 async function loadData() {
   const bust = `?t=${Date.now()}`;
   const [hRes, pRes] = await Promise.all([
-    fetch(`${BASE_URL}/data/history.json${bust}`),
-    fetch(`${BASE_URL}/params.json${bust}`),
+    fetch(`./data/history.json${bust}`),
+    fetch(`./params.json${bust}`),
   ]);
   if (!hRes.ok) throw new Error(`history.json: HTTP ${hRes.status}`);
   if (!pRes.ok) throw new Error(`params.json: HTTP ${pRes.status}`);
