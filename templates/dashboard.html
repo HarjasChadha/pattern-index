@@ -241,7 +241,7 @@ async function fetchAndRender() {
 function render() {
   if (!liveRows.length) {
     document.getElementById('root').innerHTML =
-      `<div class="loading"><div>No data yet — runs today at 11:30 PM IST</div></div>`;
+      `<div class="loading"><div>No data yet — runs weekdays after market close</div></div>`;
     return;
   }
 
@@ -264,8 +264,10 @@ function render() {
   const pv      = latest.portfolio_value  ?? startCap;
   const bv      = latest.benchmark_value  ?? startCap;
   const pnl     = pv - bv;
-  const pnlPct  = ((pv - startCap) / startCap * 100).toFixed(2);
-  const bmPct   = ((bv - startCap) / startCap * 100).toFixed(2);
+  const pnlPctNum = (pv - startCap) / startCap * 100;
+  const bmPctNum  = (bv - startCap) / startCap * 100;
+  const pnlPct  = pnlPctNum.toFixed(2);
+  const bmPct   = bmPctNum.toFixed(2);
 
   // ── Trigger count (FIX: was undefined variable `tc`) ──
   const tc = latest.triggers ?? (
@@ -276,11 +278,11 @@ function render() {
   );
 
   // ── Trigger chips — use individual flags if present, else compute from data ──
-  const pe_pct_val = latest.pe_pct ?? 0;
+  const pe_pct_val = latest.pe_pct;
   const triggerFlags = [
-    latest.t_pe_floor   != null ? !!latest.t_pe_floor   : pe_pct_val < (params.pe_floor   ?? 0.05) * 100,
-    latest.t_pe_ceiling != null ? !!latest.t_pe_ceiling : pe_pct_val > (params.pe_ceiling ?? 0.80) * 100,
-    latest.t_dd         != null ? !!latest.t_dd         : (latest.portfolio_dd ?? 0) < -(params.dd_threshold ?? 0.12) * 100,
+    latest.t_pe_floor   != null ? !!latest.t_pe_floor   : (pe_pct_val != null && pe_pct_val < (params.pe_floor   ?? 0.15) * 100),
+    latest.t_pe_ceiling != null ? !!latest.t_pe_ceiling : (pe_pct_val != null && pe_pct_val > (params.pe_ceiling ?? 0.80) * 100),
+    latest.t_dd         != null ? !!latest.t_dd         : (latest.portfolio_dd ?? 0) < -(params.dd_threshold ?? 0.20) * 100,
     latest.t_ma         != null ? !!latest.t_ma         : ((latest.index_price ?? latest.price) != null && latest.price_ma != null && (latest.index_price ?? latest.price) < latest.price_ma),
   ];
   const triggerLabels = ['PE Below Floor', 'PE Above Ceiling', 'DD > Threshold', 'Price < MA'];
@@ -304,10 +306,12 @@ function render() {
   // ── Table rows (live_rows, newest first) ──
   const rows = [...liveRows].reverse().map((r) => {
     const ac  = (r.asset||'').toLowerCase();
-    const pdd = r.portfolio_dd ?? 0;
-    const bdd = r.benchmark_dd ?? 0;
-    const rpv = r.portfolio_value ?? 0;
-    const rbv = r.benchmark_value ?? 0;
+    const pdd = r.portfolio_dd;
+    const bdd = r.benchmark_dd;
+    const rpv = r.portfolio_value;
+    const rbv = r.benchmark_value;
+    const idxVal = r.index_price ?? r.price;
+    const goldVal = r.gold_price ?? r.gold_nav;
     const ss  = r.settlement_state && r.settlement_state !== 'NORMAL'
       ? ` <span style="font-size:9px;color:var(--warning)">⏳</span>` : '';
     return `
@@ -315,16 +319,16 @@ function render() {
       <td>${r.date}${ss}</td>
       <td>${r.pe ?? '–'}</td>
       <td>${r.pe_pct != null ? r.pe_pct+'%' : '–'}</td>
-      <td>₹${((r.index_price ?? r.price)||0).toLocaleString('en-IN')}</td>
+      <td>${idxVal != null ? '₹'+idxVal.toLocaleString('en-IN') : '–'}</td>
       <td>${r.price_ma ?? '–'}</td>
-      <td>₹${r.iicp_price ?? '–'}</td>
-      <td>₹${(r.gold_price ?? r.gold_nav) ?? '–'}</td>
-      <td>₹${r.debt_price ?? '–'}</td>
+      <td>${r.iicp_price != null ? '₹'+r.iicp_price : '–'}</td>
+      <td>${goldVal != null ? '₹'+goldVal : '–'}</td>
+      <td>${r.debt_price != null ? '₹'+r.debt_price : '–'}</td>
       <td><span class="asset-tag ${ac}">${r.asset||'–'}</span></td>
-      <td class="${bdd<0?'neg':'pos'}">${bdd>=0?'+':''}${bdd}%</td>
-      <td class="${pdd<0?'neg':'pos'}">${pdd>=0?'+':''}${pdd}%</td>
-      <td>₹${rpv.toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:0})}</td>
-      <td>₹${rbv.toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:0})}</td>
+      <td class="${bdd==null?'':(bdd<0?'neg':'pos')}">${bdd!=null?(bdd>=0?'+':'')+bdd+'%':'–'}</td>
+      <td class="${pdd==null?'':(pdd<0?'neg':'pos')}">${pdd!=null?(pdd>=0?'+':'')+pdd+'%':'–'}</td>
+      <td>${rpv != null ? '₹'+rpv.toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:0}) : '–'}</td>
+      <td>${rbv != null ? '₹'+rbv.toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:0}) : '–'}</td>
     </tr>`;
   }).join('');
 
@@ -334,7 +338,10 @@ function render() {
       <h1>Pattern Index</h1>
       <div class="last-updated">Updated ${latest.date}</div>
     </div>
-    <span class="index-label">${idx}</span>
+    <div style="display:flex;align-items:center;gap:12px">
+      <a href="charts.html" style="font-size:11px;font-family:monospace;letter-spacing:0.08em;padding:5px 12px;border-radius:5px;text-decoration:none;border:1px solid rgba(203,166,247,0.25);color:rgba(203,166,247,0.8);background:rgba(203,166,247,0.06);">↗ CHARTS</a>
+      <span class="index-label">${idx}</span>
+    </div>
   </div>
 
   <div class="signal-banner ${bannerClass}">
@@ -354,18 +361,18 @@ function render() {
     </div>
     <div class="card">
       <div class="label">PE Ratio</div>
-      <div class="value">${latest.pe||'–'}</div>
+      <div class="value">${latest.pe ?? '–'}</div>
       <div class="sub">${latest.pe_pct != null ? latest.pe_pct+'th %ile ('+params.pe_lookback+'d)' : '–'}</div>
     </div>
     <div class="card">
       <div class="label">Portfolio Value</div>
-      <div class="value ${pnlPct>=0?'pos':'neg'}">₹${pv.toLocaleString('en-IN',{maximumFractionDigits:0})}</div>
-      <div class="sub ${pnlPct>=0?'pos':'neg'}">${pnlPct>=0?'+':''}${pnlPct}% since start</div>
+      <div class="value ${pnlPctNum>=0?'pos':'neg'}">₹${pv.toLocaleString('en-IN',{maximumFractionDigits:0})}</div>
+      <div class="sub ${pnlPctNum>=0?'pos':'neg'}">${pnlPctNum>=0?'+':''}${pnlPct}% since start</div>
     </div>
     <div class="card">
       <div class="label">vs Benchmark</div>
-      <div class="value ${pnl>=0?'pos':'neg'}">${pnl>=0?'+':''} ₹${Math.abs(pnl).toLocaleString('en-IN',{maximumFractionDigits:0})}</div>
-      <div class="sub">Benchmark ${bmPct>=0?'+':''}${bmPct}%</div>
+      <div class="value ${pnl>=0?'pos':'neg'}">${pnl>=0?'+':'-'} ₹${Math.abs(pnl).toLocaleString('en-IN',{maximumFractionDigits:0})}</div>
+      <div class="sub">Benchmark ${bmPctNum>=0?'+':''}${bmPct}%</div>
     </div>
     <div class="card wide">
       <div class="label">Active Triggers</div>
@@ -373,22 +380,22 @@ function render() {
     </div>
     <div class="card">
       <div class="label">Index Price</div>
-      <div class="value">₹${((latest.index_price ?? latest.price)||0).toLocaleString('en-IN')}</div>
+      <div class="value">${(latest.index_price ?? latest.price) != null ? '₹'+(latest.index_price ?? latest.price).toLocaleString('en-IN') : '–'}</div>
       <div class="sub">MA${ma_lb}: ${latest.price_ma ?? '–'}</div>
     </div>
     <div class="card">
       <div class="label">GOLDBEES</div>
-      <div class="value gold">₹${(latest.gold_price ?? latest.gold_nav) || '–'}</div>
+      <div class="value gold">${(latest.gold_price ?? latest.gold_nav) != null ? '₹'+(latest.gold_price ?? latest.gold_nav) : '–'}</div>
       <div class="sub">MA${params.gold_ma_lookback||50}: ${latest.gold_ma ?? '–'}</div>
     </div>
     <div class="card">
       <div class="label">IICP (Equity ETF)</div>
-      <div class="value pos">₹${latest.iicp_price ? latest.iicp_price.toLocaleString('en-IN') : '–'}</div>
+      <div class="value pos">${latest.iicp_price != null ? '₹'+latest.iicp_price.toLocaleString('en-IN') : '–'}</div>
       <div class="sub">Today's close</div>
     </div>
     <div class="card">
       <div class="label">EBBETF0431 (Debt ETF)</div>
-      <div class="value" style="color:var(--debt)">₹${latest.debt_price ? latest.debt_price.toLocaleString('en-IN') : '–'}</div>
+      <div class="value" style="color:var(--debt)">${latest.debt_price != null ? '₹'+latest.debt_price.toLocaleString('en-IN') : '–'}</div>
       <div class="sub">Today's close</div>
     </div>
   </div>
@@ -454,23 +461,24 @@ function render() {
 
 // ── Portfolio sparkline (live_rows) ─────────────────────────────
 function buildPortfolioSparkline(data) {
-  if (data.length < 2) return '<p style="color:var(--sub);font-size:12px;padding:8px 0">Tracking starts today — chart will build over time</p>';
+  const valid = data.filter(r => r.portfolio_value != null && r.benchmark_value != null);
+  if (valid.length < 2) return '<p style="color:var(--sub);font-size:12px;padding:8px 0">Tracking starts today — chart will build over time</p>';
 
-  const pvs = data.map(r => r.portfolio_value ?? 0);
-  const bvs = data.map(r => r.benchmark_value ?? 0);
+  const pvs = valid.map(r => r.portfolio_value);
+  const bvs = valid.map(r => r.benchmark_value);
   const all = [...pvs, ...bvs];
   const minV = Math.min(...all), maxV = Math.max(...all);
   const range = maxV - minV || 1;
   const W = 1000, H = 80, pad = 4;
 
-  const toX = i => pad + (i / (data.length - 1)) * (W - pad*2);
+  const toX = i => pad + (i / (valid.length - 1)) * (W - pad*2);
   const toY = v => H - pad - ((v - minV) / range) * (H - pad*2);
 
   const pathPV = pvs.map((v,i) => `${i===0?'M':'L'}${toX(i)},${toY(v)}`).join(' ');
   const pathBV = bvs.map((v,i) => `${i===0?'M':'L'}${toX(i)},${toY(v)}`).join(' ');
 
-  const bands = data.map((r,i) => {
-    if (i === data.length - 1) return '';
+  const bands = valid.map((r,i) => {
+    if (i === valid.length - 1) return '';
     const x1 = toX(i), x2 = toX(i+1);
     const color = r.asset === 'EQUITY' ? '34,197,94' :
                   r.asset === 'GOLD'   ? '245,158,11' :
@@ -483,7 +491,7 @@ function buildPortfolioSparkline(data) {
     ${bands}
     <path d="${pathBV}" fill="none" stroke="rgba(139,143,168,0.5)" stroke-width="1.5"/>
     <path d="${pathPV}" fill="none" stroke="#6366f1" stroke-width="2.5"/>
-    <circle cx="${toX(data.length-1)}" cy="${toY(pvs[pvs.length-1])}" r="4" fill="#6366f1"/>
+    <circle cx="${toX(valid.length-1)}" cy="${toY(pvs[pvs.length-1])}" r="4" fill="#6366f1"/>
   </svg>
   <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--sub)">
     <span><svg width="12" height="2" viewBox="0 0 12 2" style="vertical-align:middle"><line x1="0" y1="1" x2="12" y2="1" stroke="#6366f1" stroke-width="2.5"/></svg> Portfolio</span>
@@ -497,14 +505,15 @@ function buildPortfolioSparkline(data) {
 
 // ── Index price sparkline (lookback_data) ────────────────────────
 function buildPriceSparkline(data) {
-  if (data.length < 2) return '';
-  const prices = data.map(r => r.index_price ?? r.price ?? 0);
-  const mas    = data.map(r => r.price_ma);
+  const valid = data.filter(r => (r.index_price ?? r.price) != null);
+  if (valid.length < 2) return '';
+  const prices = valid.map(r => r.index_price ?? r.price);
+  const mas    = valid.map(r => r.price_ma);
   const minV = Math.min(...prices), maxV = Math.max(...prices);
   const range = maxV - minV || 1;
   const W = 1000, H = 80, pad = 4;
 
-  const toX = i => pad + (i / (data.length - 1)) * (W - pad*2);
+  const toX = i => pad + (i / (valid.length - 1)) * (W - pad*2);
   const toY = v => H - pad - ((v - minV) / range) * (H - pad*2);
 
   const pathPrice = prices.map((v,i) => `${i===0?'M':'L'}${toX(i)},${toY(v)}`).join(' ');
@@ -522,7 +531,7 @@ function buildPriceSparkline(data) {
   <svg class="sparkline" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
     <path d="${pathPrice}" fill="none" stroke="rgba(99,102,241,0.7)" stroke-width="1.5"/>
     ${pathMA ? `<path d="${pathMA}" fill="none" stroke="rgba(245,158,11,0.6)" stroke-width="1.5" stroke-dasharray="4,3"/>` : ''}
-    <circle cx="${toX(data.length-1)}" cy="${toY(prices[prices.length-1])}" r="4" fill="#6366f1"/>
+    <circle cx="${toX(valid.length-1)}" cy="${toY(prices[prices.length-1])}" r="4" fill="#6366f1"/>
   </svg>
   <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--sub)">
     <span><svg width="12" height="2" viewBox="0 0 12 2" style="vertical-align:middle"><line x1="0" y1="1" x2="12" y2="1" stroke="rgba(99,102,241,0.7)" stroke-width="1.5"/></svg> Index Price</span>

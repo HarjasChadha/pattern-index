@@ -6,6 +6,7 @@
 <title>Pattern Index — Charts</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/3.0.1/chartjs-plugin-annotation.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hammerjs/2.0.8/hammer.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;800&display=swap');
@@ -221,7 +222,10 @@
 const GITHUB_USER   = 'HarjasChadha';
 const GITHUB_REPO   = 'pattern-index';
 const GITHUB_BRANCH = 'main';
-const RAW = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}`;
+const IS_LOCAL = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+const BASE_URL = IS_LOCAL
+  ? '.'
+  : `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}`;
 
 let lookbackData = [], liveRows = [], params = {};
 let allData = [];   // merged, chronological
@@ -237,19 +241,23 @@ const state = {
   showMA126:  false,
   showPE:     false,
   showSignals:true,
+  normalise:  false,
   range:      'ALL',   // ALL | 1Y | 6M | 3M | 1M
 };
 
 // ── Fetch ─────────────────────────────────────────────────────────
 async function loadData() {
   const bust = `?t=${Date.now()}`;
-  const [h, p] = await Promise.all([
-    fetch(`${RAW}/data/history.json${bust}`).then(r => r.json()),
-    fetch(`${RAW}/params.json${bust}`).then(r => r.json()),
+  const [hRes, pRes] = await Promise.all([
+    fetch(`${BASE_URL}/data/history.json${bust}`),
+    fetch(`${BASE_URL}/params.json${bust}`),
   ]);
+  if (!hRes.ok) throw new Error(`history.json: HTTP ${hRes.status}`);
+  if (!pRes.ok) throw new Error(`params.json: HTTP ${pRes.status}`);
+  const [h, p] = await Promise.all([hRes.json(), pRes.json()]);
   params       = p;
-  lookbackData = h.lookback_data || [];
-  liveRows     = h.live_rows     || [];
+  lookbackData = Array.isArray(h.lookback_data) ? h.lookback_data : [];
+  liveRows     = Array.isArray(h.live_rows)     ? h.live_rows     : [];
 
   // Merge: lookback + live, dedupe by date, sort
   const map = new Map();
@@ -267,13 +275,14 @@ function rollingMA(arr, lb) {
   return arr.map((_, i) => {
     if (i < lb - 1) return null;
     const slice = arr.slice(i - lb + 1, i + 1);
+    if (slice.some(v => v == null || !Number.isFinite(v))) return null;
     return slice.reduce((a,b) => a + b, 0) / lb;
   });
 }
 
 // ── Normalise to 100 ──────────────────────────────────────────────
-function normalise(arr) {
-  const first = arr.find(v => v != null);
+function normalise(arr, baseOverride = null) {
+  const first = baseOverride ?? arr.find(v => v != null && Number.isFinite(v) && v > 0);
   if (!first) return arr;
   return arr.map(v => v == null ? null : (v / first) * 100);
 }
@@ -439,12 +448,15 @@ function setRange(r, btn) {
 function resetZoom() {
   if (priceChart) priceChart.resetZoom();
   if (peChart)    peChart.resetZoom();
+  if (pfChart)    pfChart.resetZoom();
+  updateStats();
 }
 
 // ── Render charts ─────────────────────────────────────────────────
 function renderCharts() {
   const filtered = filterRange(allData, state.range);
   const labels   = filtered.map(r => r.date);
+  const labelSet = new Set(labels);
 
   // Raw series
   const idxPrices  = filtered.map(r => r.index_price ?? r.price ?? null);
@@ -456,27 +468,28 @@ function renderCharts() {
 
   // Decide what to display — normalised or raw
   const doNorm = state.normalise;
+  const idxBase = idxPrices.find(v => v != null && Number.isFinite(v) && v > 0);
 
   const disp = {
-    idx:  doNorm ? normalise(idxPrices)  : idxPrices,
+    idx:  doNorm ? normalise(idxPrices, idxBase)  : idxPrices,
     iicp: doNorm ? normalise(iicpPrices) : iicpPrices,
     gold: doNorm ? normalise(goldPrices) : goldPrices,
     debt: doNorm ? normalise(debtPrices) : debtPrices,
   };
 
-  // MAs — always on raw idxPrices (signal indicators)
+  // MAs — computed on raw idxPrices and scaled with idxBase when normalised
   const ma20raw  = rollingMA(idxPrices,  20);
   const ma50raw  = rollingMA(idxPrices,  50);
   const ma126raw = rollingMA(idxPrices, 126);
-  const disp_ma20  = doNorm ? normalise(ma20raw)  : ma20raw;
-  const disp_ma50  = doNorm ? normalise(ma50raw)  : ma50raw;
-  const disp_ma126 = doNorm ? normalise(ma126raw) : ma126raw;
+  const disp_ma20  = doNorm ? normalise(ma20raw,  idxBase) : ma20raw;
+  const disp_ma50  = doNorm ? normalise(ma50raw,  idxBase) : ma50raw;
+  const disp_ma126 = doNorm ? normalise(ma126raw, idxBase) : ma126raw;
 
-  // Signal annotations — exit/enter dates from live_rows
+  // Signal annotations — exit/enter dates from live_rows within active range
   const signalAnnotations = {};
   if (state.showSignals) {
     liveRows.forEach((r, i) => {
-      if (r.signal && !r.signal.startsWith('STAY') && r.signal !== 'NORMAL') {
+      if (labelSet.has(r.date) && r.signal && !r.signal.startsWith('STAY') && r.signal !== 'NORMAL') {
         const isExit = r.signal.includes('EXIT') || r.signal.includes('→');
         signalAnnotations[`sig_${i}`] = {
           type: 'line',
@@ -486,7 +499,7 @@ function renderCharts() {
           borderDash: [4, 3],
           label: {
             content: r.signal.split(' ')[0],
-            enabled: false,
+            display: false,
           }
         };
       }
@@ -554,8 +567,8 @@ function renderCharts() {
         maxTicksLimit: 10,
         maxRotation: 0,
         color: '#585b70',
-        callback: (val, i, ticks) => {
-          const date = labels[i];
+        callback: (val) => {
+          const date = labels[val];
           if (!date) return '';
           return date.slice(0, 7); // YYYY-MM
         }
@@ -682,14 +695,14 @@ function renderCharts() {
             floorLine: {
               type: 'line', yMin: floor, yMax: floor, yScaleID: 'y',
               borderColor: 'rgba(166,227,161,0.5)', borderWidth: 1.5, borderDash: [5,3],
-              label: { content: `FLOOR ${floor.toFixed(0)}%`, enabled: true,
+              label: { content: `FLOOR ${floor.toFixed(0)}%`, display: true,
                 backgroundColor: 'transparent', color: 'rgba(166,227,161,0.7)',
                 font: { size: 9 }, position: 'start' }
             },
             ceilLine: {
               type: 'line', yMin: ceiling, yMax: ceiling, yScaleID: 'y',
               borderColor: 'rgba(243,139,168,0.5)', borderWidth: 1.5, borderDash: [5,3],
-              label: { content: `CEIL ${ceiling.toFixed(0)}%`, enabled: true,
+              label: { content: `CEIL ${ceiling.toFixed(0)}%`, display: true,
                 backgroundColor: 'transparent', color: 'rgba(243,139,168,0.7)',
                 font: { size: 9 }, position: 'start' }
             },
@@ -700,7 +713,7 @@ function renderCharts() {
         x: {
           type: 'category',
           ticks: { maxTicksLimit: 10, maxRotation: 0, color: '#585b70',
-            callback: (val, i) => labels[i]?.slice(0,7) || '' },
+            callback: (val) => labels[val]?.slice(0,7) || '' },
           grid: { color: 'rgba(30,36,51,0.8)' }
         },
         y: {
@@ -741,39 +754,48 @@ function renderCharts() {
 
 // ── Stats below price chart ───────────────────────────────────────
 function updateStats() {
-  const filtered = filterRange(allData, state.range);
+  let filtered = filterRange(allData, state.range);
+  if (priceChart?.scales?.x && filtered.length) {
+    const minIdx = Math.max(0, Math.floor(priceChart.scales.x.min ?? 0));
+    const maxIdx = Math.min(filtered.length - 1, Math.ceil(priceChart.scales.x.max ?? (filtered.length - 1)));
+    if (maxIdx >= minIdx) filtered = filtered.slice(minIdx, maxIdx + 1);
+  }
   if (!filtered.length) return;
 
-  const idxPrices = filtered.map(r => r.index_price ?? r.price ?? null).filter(Boolean);
+  const idxPrices = filtered.map(r => r.index_price ?? r.price ?? null).filter(v => v != null && Number.isFinite(v) && v > 0);
+  if (!idxPrices.length) return;
   const first = idxPrices[0], last = idxPrices[idxPrices.length - 1];
-  const ret   = ((last - first) / first * 100).toFixed(2);
+  const retNum = ((last - first) / first * 100);
+  const ret   = retNum.toFixed(2);
   const peak  = Math.max(...idxPrices);
-  const dd    = (((last - peak) / peak) * 100).toFixed(2);
+  const ddNum = ((last - peak) / peak) * 100;
+  const dd    = ddNum.toFixed(2);
   const vol   = (() => {
+    if (idxPrices.length < 2) return '–';
     const rets = [];
     for (let i = 1; i < idxPrices.length; i++)
       rets.push((idxPrices[i] - idxPrices[i-1]) / idxPrices[i-1]);
     const mean = rets.reduce((a,b)=>a+b,0)/rets.length;
     const variance = rets.reduce((a,b)=>a+(b-mean)**2,0)/rets.length;
-    return (Math.sqrt(variance) * Math.sqrt(252) * 100).toFixed(1);
+    return (Math.sqrt(variance) * Math.sqrt(252) * 100).toFixed(1) + '%';
   })();
 
   document.getElementById('priceStats').innerHTML = `
     <div class="stat">
       <span class="stat-label">PERIOD RETURN</span>
-      <span class="stat-value ${ret>=0?'pos':'neg'}">${ret>=0?'+':''}${ret}%</span>
+      <span class="stat-value ${retNum>=0?'pos':'neg'}">${retNum>=0?'+':''}${ret}%</span>
     </div>
     <div class="stat">
       <span class="stat-label">CURRENT</span>
-      <span class="stat-value neu">₹${last?.toLocaleString('en-IN',{maximumFractionDigits:0})}</span>
+      <span class="stat-value neu">₹${last.toLocaleString('en-IN',{maximumFractionDigits:0})}</span>
     </div>
     <div class="stat">
       <span class="stat-label">DRAWDOWN</span>
-      <span class="stat-value ${dd<0?'neg':'pos'}">${dd}%</span>
+      <span class="stat-value ${ddNum<0?'neg':'pos'}">${dd}%</span>
     </div>
     <div class="stat">
       <span class="stat-label">ANN. VOL</span>
-      <span class="stat-value neu">${vol}%</span>
+      <span class="stat-value neu">${vol}</span>
     </div>
     <div class="stat">
       <span class="stat-label">DATA POINTS</span>
@@ -808,21 +830,20 @@ function renderPortfolioChart() {
   const assetColors = { EQUITY:'rgba(166,227,161,0.12)', GOLD:'rgba(249,226,175,0.12)',
                         DEBT:'rgba(137,180,250,0.12)',  CASH:'rgba(139,143,168,0.08)' };
   const bgAnnotations = {};
-  let segStart = null, segAsset = null;
-  data.forEach((r, i) => {
-    const asset = r.asset || 'EQUITY';
-    if (segStart === null) { segStart = i; segAsset = asset; }
-    if (asset !== segAsset || i === data.length - 1) {
-      const endIdx = i === data.length - 1 ? i : i - 1;
+  let segStart = 0, segAsset = data[0].asset || 'EQUITY';
+  for (let i = 1; i <= data.length; i++) {
+    const curAsset = i < data.length ? (data[i].asset || 'EQUITY') : null;
+    if (curAsset !== segAsset) {
       bgAnnotations[`bg_${i}`] = {
         type: 'box',
-        xMin: labels[segStart], xMax: labels[endIdx],
+        xMin: labels[segStart], xMax: labels[i - 1],
         backgroundColor: assetColors[segAsset] || 'transparent',
         borderWidth: 0,
       };
-      segStart = i; segAsset = asset;
+      segStart = i;
+      segAsset = curAsset;
     }
-  });
+  }
 
   if (pfChart) { pfChart.destroy(); }
 
@@ -889,7 +910,7 @@ function renderPortfolioChart() {
         x: {
           type: 'category',
           ticks: { maxTicksLimit: 10, maxRotation: 0, color: '#585b70',
-            callback: (val, i) => labels[i]?.slice(0,7) || '' },
+            callback: (val) => labels[val]?.slice(0,7) || '' },
           grid: { color: 'rgba(30,36,51,0.8)' }
         },
         y: {
@@ -906,33 +927,33 @@ function renderPortfolioChart() {
   });
 
   // Stats
-  const pFirst = pvVals.find(v => v != null);
-  const pLast  = pvVals.filter(v => v != null).at(-1);
-  const bFirst = bvVals.find(v => v != null);
-  const bLast  = bvVals.filter(v => v != null).at(-1);
-  const pRet   = pFirst ? ((pLast - pFirst) / pFirst * 100).toFixed(2) : '–';
-  const bRet   = bFirst ? ((bLast - bFirst) / bFirst * 100).toFixed(2) : '–';
-  const alpha  = (parseFloat(pRet) - parseFloat(bRet)).toFixed(2);
-  const pPeak  = Math.max(...pvVals.filter(v => v != null));
-  const pDD    = pLast && pPeak ? ((pLast - pPeak) / pPeak * 100).toFixed(2) : '–';
+  const pValid = pvVals.filter(v => v != null && Number.isFinite(v));
+  const bValid = bvVals.filter(v => v != null && Number.isFinite(v));
+  const pFirst = pValid[0], pLast = pValid.at(-1);
+  const bFirst = bValid[0], bLast = bValid.at(-1);
+  const pRetNum = pFirst ? ((pLast - pFirst) / pFirst * 100) : null;
+  const bRetNum = bFirst ? ((bLast - bFirst) / bFirst * 100) : null;
+  const alphaNum = (pRetNum != null && bRetNum != null) ? (pRetNum - bRetNum) : null;
+  const pPeak  = pValid.length ? Math.max(...pValid) : null;
+  const pDDNum = (pLast != null && pPeak) ? ((pLast - pPeak) / pPeak * 100) : null;
   const days   = data.length;
 
   document.getElementById('pfStats').innerHTML = `
     <div class="stat">
       <span class="stat-label">PATTERN INDEX</span>
-      <span class="stat-value ${pRet>=0?'pos':'neg'}">${pRet>=0?'+':''}${pRet}%</span>
+      <span class="stat-value ${pRetNum==null?'neu':(pRetNum>=0?'pos':'neg')}">${pRetNum!=null?(pRetNum>=0?'+':'')+pRetNum.toFixed(2)+'%':'–'}</span>
     </div>
     <div class="stat">
       <span class="stat-label">BENCHMARK (IICP)</span>
-      <span class="stat-value ${bRet>=0?'pos':'neg'}">${bRet>=0?'+':''}${bRet}%</span>
+      <span class="stat-value ${bRetNum==null?'neu':(bRetNum>=0?'pos':'neg')}">${bRetNum!=null?(bRetNum>=0?'+':'')+bRetNum.toFixed(2)+'%':'–'}</span>
     </div>
     <div class="stat">
       <span class="stat-label">ALPHA</span>
-      <span class="stat-value ${alpha>=0?'pos':'neg'}">${alpha>=0?'+':''}${alpha}%</span>
+      <span class="stat-value ${alphaNum==null?'neu':(alphaNum>=0?'pos':'neg')}">${alphaNum!=null?(alphaNum>=0?'+':'')+alphaNum.toFixed(2)+'%':'–'}</span>
     </div>
     <div class="stat">
       <span class="stat-label">MAX DRAWDOWN</span>
-      <span class="stat-value ${pDD<0?'neg':'pos'}">${pDD}%</span>
+      <span class="stat-value ${pDDNum==null?'neu':(pDDNum<0?'neg':'pos')}">${pDDNum!=null?pDDNum.toFixed(2)+'%':'–'}</span>
     </div>
     <div class="stat">
       <span class="stat-label">DAYS TRACKED</span>
